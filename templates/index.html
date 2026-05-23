@@ -7,130 +7,411 @@
   <style>
     body { font-family: Arial, Helvetica, sans-serif; margin: 0; background:#f6f7fb; }
     header { background:#111827; color:#fff; padding: 16px 20px; }
-    .wrap { max-width: 1000px; margin: 20px auto; padding: 0 16px; }
-    .grid { display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .wrap { max-width: 1100px; margin: 20px auto; padding: 0 16px; }
+    .grid2 { display:grid; grid-template-columns: 1.1fr 0.9fr; gap: 16px; }
+    .grid3 { display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
     .card { background:#fff; border:1px solid #e5e7eb; border-radius: 12px; padding: 16px; }
     h2 { margin: 0 0 12px; font-size: 16px; }
     label { display:block; font-size: 13px; margin: 10px 0 6px; color:#374151; }
-    input[type=text], select { width:100%; padding: 10px; border:1px solid #d1d5db; border-radius: 10px; }
+
+    input[type=text], select {
+      width:100%; padding: 10px; border:1px solid #d1d5db; border-radius: 10px;
+      box-sizing: border-box;
+    }
+    input[disabled] { background:#f3f4f6; color:#6b7280; }
+
     input[type=file] { width: 100%; }
-    button { margin-top: 12px; width:100%; padding: 10px; border:0; border-radius:10px; cursor:pointer; font-weight:600; }
+
+    button {
+      margin-top: 12px; width:100%; padding: 10px; border:0; border-radius:10px; cursor:pointer; font-weight:700;
+    }
     .btn-primary { background:#2563eb; color:#fff; }
     .btn-danger { background:#dc2626; color:#fff; }
     .btn-secondary { background:#4b5563; color:#fff; }
-    pre { background:#0b1220; color:#e5e7eb; padding: 12px; border-radius: 12px; overflow:auto; }
+
     .row { display:flex; gap:12px; align-items:center; }
     .row > * { flex:1; }
+
     .muted { color:#6b7280; font-size: 12px; margin-top: 6px; }
+
+    .plate-pill {
+      display:inline-block; padding: 6px 10px; border-radius:999px; background:#eef2ff; color:#3730a3;
+      font-weight:800;
+    }
+
+    .img-preview {
+      width:100%; max-height: 220px; object-fit: contain; border: 1px dashed #cbd5e1;
+      border-radius: 12px; background:#f8fafc;
+    }
+
+    table { width:100%; border-collapse: collapse; }
+    th, td { border-bottom:1px solid #e5e7eb; padding: 10px 8px; text-align:left; font-size: 13px; vertical-align: top; }
+    th { color:#374151; font-weight: 800; background:#f9fafb; position: sticky; top: 0; }
+
+    pre {
+      background:#0b1220; color:#e5e7eb; padding: 12px; border-radius: 12px; overflow:auto;
+      margin: 0;
+    }
+
+    .section-title { display:flex; justify-content: space-between; align-items:center; gap:12px; margin-bottom: 10px; }
   </style>
 </head>
 <body>
-  <header>
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
-      <div><b>Parking Management</b></div>
-      <div style="font-size:13px;opacity:.9;">Local host · Flask API</div>
-    </div>
-  </header>
+<header>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+    <div><b>Parking Management</b></div>
+    <div style="font-size:13px;opacity:.9;">Local host · Flask API</div>
+  </div>
+</header>
 
-  <div class="wrap">
-    <div class="grid">
-      <div class="card">
-        <h2>Check-in</h2>
-
-        <label>Plate (biển số)</label>
-        <input id="inPlate" type="text" placeholder="VD: ABC123" />
-        <div class="muted">Hoặc gửi ảnh biển số bên dưới.</div>
-
-        <label>Image (tuỳ chọn)</label>
-        <input id="inImage" type="file" accept="image/*" />
-
-        <button class="btn-primary" onclick="checkIn()">Check-in</button>
+<div class="wrap">
+  <div class="grid2">
+    <div class="card">
+      <div class="section-title">
+        <h2 style="margin:0;">Chức năng</h2>
+        <div>
+          <span id="modeBadge" class="plate-pill">CHECK-IN</span>
+        </div>
       </div>
 
-      <div class="card">
-        <h2>Check-out</h2>
-
-        <label>Plate (biển số)</label>
-        <input id="outPlate" type="text" placeholder="VD: ABC123" />
-        <div class="muted">Hoặc gửi ảnh biển số bên dưới.</div>
-
-        <label>Image (tuỳ chọn)</label>
-        <input id="outImage" type="file" accept="image/*" />
-
-        <button class="btn-danger" onclick="checkOut()">Check-out</button>
+      <div class="row" style="margin-bottom: 8px;">
+        <button id="toggleModeBtn" class="btn-secondary" onclick="toggleMode()">Switch to CHECK-OUT</button>
       </div>
-    </div>
 
-    <div class="card" style="margin-top:16px;">
+      <label>Biển số</label>
+      <input id="plate" type="text" placeholder="VD: ABC123" disabled />
+      <div class="muted">Upload ảnh để nhận diện tự động và tự điền biển số.</div>
+
+      <label>Ảnh (upload để nhận diện ngay)</label>
+      <input id="image" type="file" accept="image/*" />
+      <div style="margin-top:10px;">
+        <img id="imagePreview" class="img-preview" alt="preview" />
+      </div>
+
       <div class="row">
-        <button class="btn-secondary" onclick="loadHistory()">Lấy lịch sử</button>
-        <button class="btn-secondary" onclick="loadSpots()">Lấy spots</button>
+        <button id="actionBtn" class="btn-primary" onclick="performAction()">Check-in</button>
       </div>
-      <div class="muted">Kết quả sẽ hiện bên dưới dạng JSON.</div>
-      <div style="margin-top:12px;">
+
+      <label style="margin-top:16px;">Kết quả</label>
+      <div style="margin-top:8px;">
         <pre id="result">{ "ready": true }</pre>
+      </div>
+
+      <div id="comboBoxWrap" style="margin-top: 12px; display:none;">
+        <label>Chọn dòng đang xử lý (combo)</label>
+        <select id="comboSelect"></select>
+        <button class="btn-secondary" onclick="performActionWithCombo()">Xác nhận</button>
+        <div class="muted">Dùng khi biển số đã tồn tại trong bãi.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="margin-bottom: 8px;">
+        <button class="btn-secondary" onclick="loadActiveTable()">Danh sách xe đang đỗ</button>
+        <button class="btn-secondary" onclick="loadHistoryTable()">Xem lịch sử</button>
+      </div>
+
+      <div style="margin-top: 10px;">
+        <h2 style="margin:0 0 10px;">Xe đang đỗ</h2>
+        <div style="max-height: 260px; overflow:auto; border:1px solid #eef2f7; border-radius:12px;">
+          <table>
+            <thead>
+              <tr>
+                <th>Biển số</th>
+                <th>Ngày giờ vào</th>
+                <th>Vị trí</th>
+              </tr>
+            </thead>
+            <tbody id="activeTbody">
+              <tr><td colspan="3" class="muted">Chưa tải</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="margin-top: 18px;">
+        <h2 style="margin:0 0 10px;">Lịch sử đổ xe</h2>
+        <div style="max-height: 260px; overflow:auto; border:1px solid #eef2f7; border-radius:12px;">
+          <table>
+            <thead>
+              <tr>
+                <th>Biển số</th>
+                <th>Đổ (IN)</th>
+                <th>Lấy (OUT)</th>
+                <th>Giờ</th>
+                <th>Tiền</th>
+              </tr>
+            </thead>
+            <tbody id="historyTbody">
+              <tr><td colspan="5" class="muted">Chưa tải</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
+</div>
 
-  <script>
-    const API_BASE = '';
+<script>
+  const API_BASE = '';
 
-    function setResult(obj) {
-      document.getElementById('result').textContent = JSON.stringify(obj, null, 2);
+  let currentMode = 'IN'; // IN | OUT
+  let lastRecognizedPlate = '';
+  let comboPayload = null; // store last error payload / active list
+
+  const elPlate = document.getElementById('plate');
+  const elImage = document.getElementById('image');
+  const elImagePreview = document.getElementById('imagePreview');
+  const elResult = document.getElementById('result');
+
+  const elModeBadge = document.getElementById('modeBadge');
+  const elToggleModeBtn = document.getElementById('toggleModeBtn');
+  const elActionBtn = document.getElementById('actionBtn');
+
+  const elComboBoxWrap = document.getElementById('comboBoxWrap');
+  const elComboSelect = document.getElementById('comboSelect');
+
+  function setResult(obj) {
+    elResult.textContent = JSON.stringify(obj, null, 2);
+  }
+
+  async function postForm(url, form) {
+    const res = await fetch(url, { method: 'POST', body: form });
+    const text = await res.text();
+    let json;
+    try { json = JSON.parse(text); } catch { json = { raw: text }; }
+    if (!res.ok) {
+      setResult({ status: res.status, error: json });
+      return { ok: false, status: res.status, json };
+    }
+    setResult(json);
+    return { ok: true, json };
+  }
+
+  function formatDateTime(isoSeconds) {
+    try {
+      const d = new Date(isoSeconds);
+      if (isNaN(d.getTime())) return isoSeconds;
+      return d.toLocaleString('vi-VN');
+    } catch {
+      return isoSeconds;
+    }
+  }
+
+  function hoursFromSeconds(sec) {
+    if (sec === null || sec === undefined) return '-';
+    const h = sec / 3600;
+    return (Math.round(h * 10) / 10).toFixed(1);
+  }
+
+  function hideComboBox() {
+    elComboBoxWrap.style.display = 'none';
+    elComboSelect.innerHTML = '';
+    comboPayload = null;
+  }
+
+  function showComboBox(items, plate) {
+    elComboSelect.innerHTML = '';
+    (items || []).forEach((it, idx) => {
+      const opt = document.createElement('option');
+      opt.value = String(idx);
+      opt.textContent = `${it.spot_id || '-'} | ${formatDateTime(it.time_in)}`;
+      elComboSelect.appendChild(opt);
+    });
+
+    comboPayload = { items, plate };
+    elComboBoxWrap.style.display = 'block';
+  }
+
+  async function recognizeFromImage(file) {
+    const form = new FormData();
+    form.append('image', file);
+    const res = await postForm(API_BASE + '/recognize', form);
+    if (!res.ok) return null;
+    const plate = (res.json.plate || '').toString().trim().toUpperCase();
+    return plate;
+  }
+
+  async function onImageSelected() {
+    hideComboBox();
+
+    const file = elImage.files && elImage.files[0];
+    if (!file) return;
+
+    // Preview
+    const url = URL.createObjectURL(file);
+    elImagePreview.src = url;
+
+    // IMPORTANT: Recognize immediately, then lock plate
+    // Reset plate first to avoid stale value/lock issues
+    elPlate.disabled = false;
+    elPlate.value = '';
+    lastRecognizedPlate = '';
+
+    setResult({ status: 'recognizing', message: 'Đang nhận diện...' });
+
+    const plate = await recognizeFromImage(file);
+    if (!plate) {
+      setResult({ status: 'error', message: 'Không nhận diện được biển số từ ảnh.' });
+      // keep locked behavior? requirement says unlock until recognize; we'll unlock to allow manual fallback
+      elPlate.disabled = false;
+      return;
     }
 
-    async function postForm(url, form) {
-      const res = await fetch(url, { method: 'POST', body: form });
-      const text = await res.text();
-      let json;
-      try { json = JSON.parse(text); } catch { json = { raw: text }; }
-      if (!res.ok) {
-        setResult({ status: res.status, error: json });
-        return null;
-      }
-      setResult(json);
-      return json;
+    lastRecognizedPlate = plate;
+    elPlate.value = plate;
+    elPlate.disabled = true;
+
+    // Update active list immediately
+    await loadActiveTable();
+  }
+
+  elImage.addEventListener('change', onImageSelected);
+
+  function toggleMode() {
+    currentMode = (currentMode === 'IN') ? 'OUT' : 'IN';
+
+    if (currentMode === 'IN') {
+      elActionBtn.className = 'btn-primary';
+      elActionBtn.textContent = 'Check-in';
+      elModeBadge.textContent = 'CHECK-IN';
+      elToggleModeBtn.textContent = 'Switch to CHECK-OUT';
+    } else {
+      elActionBtn.className = 'btn-danger';
+      elActionBtn.textContent = 'Check-out';
+      elModeBadge.textContent = 'CHECK-OUT';
+      elToggleModeBtn.textContent = 'Switch to CHECK-IN';
     }
 
-    async function checkIn() {
-      const plate = document.getElementById('inPlate').value.trim();
-      const file = document.getElementById('inImage').files[0];
-      if (!plate && !file) {
-        setResult({ error: 'Missing plate or image' });
+    hideComboBox();
+    setResult({ status: 'mode', mode: currentMode });
+  }
+
+  async function performActionWithCombo() {
+    if (!comboPayload) return;
+    hideComboBox();
+
+    // For now backend check-in/out logic only needs plate (and image if provided).
+    // combo box is for UX message requirement; we still perform action using selected plate.
+    await performAction();
+  }
+
+  async function performAction() {
+    hideComboBox();
+
+    const plate = (elPlate.value || '').trim().toUpperCase();
+    const file = elImage.files && elImage.files[0];
+
+    if (!plate) {
+      setResult({ status: 'error', message: 'Chưa có biển số. Hãy upload ảnh để nhận diện.' });
+      return;
+    }
+    if (!file) {
+      setResult({ status: 'error', message: 'Chưa có ảnh. Hãy upload ảnh trước.' });
+      return;
+    }
+
+    const form = new FormData();
+    form.append('plate', plate);
+    form.append('image', file);
+
+    const url = (currentMode === 'IN') ? API_BASE + '/check-in' : API_BASE + '/check-out';
+
+    const res = await postForm(url, form);
+    if (!res.ok) {
+      // combo box case: plate already inside when IN
+      const err = res.json || {};
+      const msg = (err.message || '').toString();
+
+      if (msg.toLowerCase().includes('already inside') || msg.toLowerCase().includes('tồn tại')) {
+        const activeItems = await fetchActiveItems();
+        const same = (activeItems || []).filter(x => (x.plate || '').toString().trim().toUpperCase() === plate);
+        if (same.length === 0) {
+          setResult({ status: 'error', message: msg, plate });
+          return;
+        }
+        showComboBox(same, plate);
+        setResult({ status: 'error', message: msg, plate, combo: true });
         return;
       }
-      const form = new FormData();
-      if (plate) form.append('plate', plate);
-      if (file) form.append('image', file);
-      await postForm(API_BASE + '/check-in', form);
+
+      setResult({ status: 'error', message: msg || 'Có lỗi xảy ra', plate });
+      return;
     }
 
-    async function checkOut() {
-      const plate = document.getElementById('outPlate').value.trim();
-      const file = document.getElementById('outImage').files[0];
-      if (!plate && !file) {
-        setResult({ error: 'Missing plate or image' });
+    // Success: refresh tables
+    await loadActiveTable();
+    await loadHistoryTable();
+  }
+
+  async function fetchActiveItems() {
+    const res = await fetch(API_BASE + '/active');
+    const json = await res.json();
+    return json.items || [];
+  }
+
+  async function loadActiveTable() {
+    try {
+      const items = await fetchActiveItems();
+      const tbody = document.getElementById('activeTbody');
+      if (!items || items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="muted">Hiện chưa có xe nào trong bãi.</td></tr>';
         return;
       }
-      const form = new FormData();
-      if (plate) form.append('plate', plate);
-      if (file) form.append('image', file);
-      await postForm(API_BASE + '/check-out', form);
-    }
 
-    async function loadHistory() {
+      tbody.innerHTML = items.map(it => {
+        return `
+          <tr>
+            <td><b>${it.plate || ''}</b></td>
+            <td>${formatDateTime(it.time_in || '')}</td>
+            <td>${it.spot_id || '-'}</td>
+          </tr>
+        `;
+      }).join('');
+    } catch (e) {
+      document.getElementById('activeTbody').innerHTML = '<tr><td colspan="3" class="muted">Lỗi tải danh sách.</td></tr>';
+    }
+  }
+
+  async function loadHistoryTable() {
+    try {
       const res = await fetch(API_BASE + '/history');
       const json = await res.json();
-      setResult(json);
-    }
+      const items = json.items || [];
+      const tbody = document.getElementById('historyTbody');
 
-    async function loadSpots() {
-      const res = await fetch(API_BASE + '/spots');
-      const json = await res.json();
-      setResult(json);
+      if (!items || items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="muted">Chưa có lịch sử.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = items.map(it => {
+        const timeIn = it.time_in ? formatDateTime(it.time_in) : '-';
+        const timeOut = it.time_out ? formatDateTime(it.time_out) : '-';
+        const durationSec = it.duration_seconds;
+        const hours = (durationSec === null || durationSec === undefined) ? '-' : hoursFromSeconds(durationSec);
+        const fee = it.fee_vnd === null || it.fee_vnd === undefined ? '-' : `${Number(it.fee_vnd).toLocaleString('vi-VN')} VND`;
+
+        // Only OUT rows should contain duration/fee, but keep generic
+        return `
+          <tr>
+            <td><b>${it.plate || ''}</b></td>
+            <td>${timeIn}</td>
+            <td>${timeOut}</td>
+            <td>${hours}</td>
+            <td>${fee}</td>
+          </tr>
+        `;
+      }).join('');
+    } catch (e) {
+      document.getElementById('historyTbody').innerHTML = '<tr><td colspan="5" class="muted">Lỗi tải lịch sử.</td></tr>';
     }
-  </script>
+  }
+
+  // Initial state
+  loadActiveTable();
+  loadHistoryTable();
+</script>
 </body>
 </html>
 

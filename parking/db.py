@@ -23,6 +23,7 @@ class ParkingDB:
         self.db_path = db_path
         self._init_db()
 
+
     def _connect(self) -> sqlite3.Connection:
         con = sqlite3.connect(self.db_path)
         con.row_factory = sqlite3.Row
@@ -108,6 +109,18 @@ class ParkingDB:
                 "SELECT * FROM active_vehicles WHERE plate = ?", (plate,)
             ).fetchone()
             return dict(row) if row else None
+
+    def get_active_vehicles(self) -> list[dict[str, Any]]:
+        with self._connect() as con:
+            rows = con.execute(
+                """
+                SELECT plate, time_in, spot_id, last_image_path
+                FROM active_vehicles
+                ORDER BY time_in DESC
+                """
+            ).fetchall()
+            return [dict(r) for r in rows]
+
 
     def remove_vehicle(self, plate: str) -> dict[str, Any] | None:
         with self._connect() as con:

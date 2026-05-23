@@ -29,6 +29,23 @@ def _save_upload_image_to_tmp(file_storage) -> str:
     return path
 
 
+@app.post("/recognize")
+def recognize():
+    image_file = request.files.get("image") if request.files else None
+    if image_file is None:
+        return jsonify({"status": "error", "message": "Missing image"}), 400
+
+    image_path = _save_upload_image_to_tmp(image_file)
+    plate_str = Main.detect_plate_str_from_image(image_path)
+    return jsonify({"status": "ok", "plate": str(plate_str).strip().upper()})
+
+
+@app.get("/active")
+def active():
+    items = service.get_active_vehicles()
+    return jsonify({"items": items})
+
+
 @app.post("/check-in")
 def check_in():
     payload = request.form if request.form else request.json or {}

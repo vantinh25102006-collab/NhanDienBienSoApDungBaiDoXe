@@ -27,6 +27,7 @@ class ParkingService:
         self.db = ParkingDB(db_path=db_path)
         self.fee_rule = fee_rule or FeeRule()
 
+
     def check_in(self, plate_str: str, time_in: datetime, spot_id: Optional[str] = None) -> dict:
         plate = (plate_str or "").strip().upper()
         if not plate:
@@ -98,4 +99,8 @@ class ParkingService:
 
     def get_spots(self) -> list[dict]:
         return self.db.get_spots()
+
+    def get_active_vehicles(self) -> list[dict]:
+        return self.db.get_active_vehicles()
+
 
