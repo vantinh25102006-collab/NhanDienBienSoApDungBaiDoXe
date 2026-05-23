@@ -80,13 +80,26 @@ def main():
 
 ###################################################################################################
 def drawRedRectangleAroundPlate(imgOriginalScene, licPlate):
+    rr = licPlate.rrLocationOfPlateInScene
 
-    p2fRectPoints = cv2.boxPoints(licPlate.rrLocationOfPlateInScene)            # get 4 vertices of rotated rect
+    # kiểm tra rotatedRect hợp lệ
+    if rr is None or len(rr) != 3:
+        print("Lỗi: rotatedRect không hợp lệ:", rr)
+        return
 
-    cv2.line(imgOriginalScene, tuple(p2fRectPoints[0]), tuple(p2fRectPoints[1]), SCALAR_RED, 2)         # draw 4 red lines
+    try:
+        p2fRectPoints = cv2.boxPoints(rr)
+        p2fRectPoints = np.int0(p2fRectPoints)
+    except Exception as e:
+        print("Lỗi khi tạo boxPoints:", e)
+        print("Giá trị rr =", rr)
+        return
+
+    cv2.line(imgOriginalScene, tuple(p2fRectPoints[0]), tuple(p2fRectPoints[1]), SCALAR_RED, 2)
     cv2.line(imgOriginalScene, tuple(p2fRectPoints[1]), tuple(p2fRectPoints[2]), SCALAR_RED, 2)
     cv2.line(imgOriginalScene, tuple(p2fRectPoints[2]), tuple(p2fRectPoints[3]), SCALAR_RED, 2)
     cv2.line(imgOriginalScene, tuple(p2fRectPoints[3]), tuple(p2fRectPoints[0]), SCALAR_RED, 2)
+
 # end function
 
 ###################################################################################################
@@ -130,8 +143,31 @@ def writeLicensePlateCharsOnImage(imgOriginalScene, licPlate):
 # end function
 
 ###################################################################################################
+def detect_plate_str_from_image(image_path: str) -> str:
+    """Detect and recognize license plate string from an image path."""
+    blnKNNTrainingSuccessful = DetectChars.loadKNNDataAndTrainKNN()
+    if blnKNNTrainingSuccessful is False:
+        raise RuntimeError("KNN training was not successful")
+
+    imgOriginalScene = cv2.imread(image_path)
+    if imgOriginalScene is None:
+        raise FileNotFoundError(f"Image not read from file: {image_path}")
+
+    listOfPossiblePlates = DetectPlates.detectPlatesInScene(imgOriginalScene)
+    listOfPossiblePlates = DetectChars.detectCharsInPlates(listOfPossiblePlates)
+
+    if len(listOfPossiblePlates) == 0:
+        return ""
+
+    listOfPossiblePlates.sort(key=lambda possiblePlate: len(possiblePlate.strChars), reverse=True)
+    licPlate = listOfPossiblePlates[0]
+
+    return (licPlate.strChars or "").strip()
+
+
 if __name__ == "__main__":
     main()
+
 
 
 

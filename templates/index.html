@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Parking Management</title>
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; margin: 0; background:#f6f7fb; }
+    header { background:#111827; color:#fff; padding: 16px 20px; }
+    .wrap { max-width: 1000px; margin: 20px auto; padding: 0 16px; }
+    .grid { display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .card { background:#fff; border:1px solid #e5e7eb; border-radius: 12px; padding: 16px; }
+    h2 { margin: 0 0 12px; font-size: 16px; }
+    label { display:block; font-size: 13px; margin: 10px 0 6px; color:#374151; }
+    input[type=text], select { width:100%; padding: 10px; border:1px solid #d1d5db; border-radius: 10px; }
+    input[type=file] { width: 100%; }
+    button { margin-top: 12px; width:100%; padding: 10px; border:0; border-radius:10px; cursor:pointer; font-weight:600; }
+    .btn-primary { background:#2563eb; color:#fff; }
+    .btn-danger { background:#dc2626; color:#fff; }
+    .btn-secondary { background:#4b5563; color:#fff; }
+    pre { background:#0b1220; color:#e5e7eb; padding: 12px; border-radius: 12px; overflow:auto; }
+    .row { display:flex; gap:12px; align-items:center; }
+    .row > * { flex:1; }
+    .muted { color:#6b7280; font-size: 12px; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+      <div><b>Parking Management</b></div>
+      <div style="font-size:13px;opacity:.9;">Local host · Flask API</div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="grid">
+      <div class="card">
+        <h2>Check-in</h2>
+
+        <label>Plate (biển số)</label>
+        <input id="inPlate" type="text" placeholder="VD: ABC123" />
+        <div class="muted">Hoặc gửi ảnh biển số bên dưới.</div>
+
+        <label>Image (tuỳ chọn)</label>
+        <input id="inImage" type="file" accept="image/*" />
+
+        <button class="btn-primary" onclick="checkIn()">Check-in</button>
+      </div>
+
+      <div class="card">
+        <h2>Check-out</h2>
+
+        <label>Plate (biển số)</label>
+        <input id="outPlate" type="text" placeholder="VD: ABC123" />
+        <div class="muted">Hoặc gửi ảnh biển số bên dưới.</div>
+
+        <label>Image (tuỳ chọn)</label>
+        <input id="outImage" type="file" accept="image/*" />
+
+        <button class="btn-danger" onclick="checkOut()">Check-out</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="row">
+        <button class="btn-secondary" onclick="loadHistory()">Lấy lịch sử</button>
+        <button class="btn-secondary" onclick="loadSpots()">Lấy spots</button>
+      </div>
+      <div class="muted">Kết quả sẽ hiện bên dưới dạng JSON.</div>
+      <div style="margin-top:12px;">
+        <pre id="result">{ "ready": true }</pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '';
+
+    function setResult(obj) {
+      document.getElementById('result').textContent = JSON.stringify(obj, null, 2);
+    }
+
+    async function postForm(url, form) {
+      const res = await fetch(url, { method: 'POST', body: form });
+      const text = await res.text();
+      let json;
+      try { json = JSON.parse(text); } catch { json = { raw: text }; }
+      if (!res.ok) {
+        setResult({ status: res.status, error: json });
+        return null;
+      }
+      setResult(json);
+      return json;
+    }
+
+    async function checkIn() {
+      const plate = document.getElementById('inPlate').value.trim();
+      const file = document.getElementById('inImage').files[0];
+      if (!plate && !file) {
+        setResult({ error: 'Missing plate or image' });
+        return;
+      }
+      const form = new FormData();
+      if (plate) form.append('plate', plate);
+      if (file) form.append('image', file);
+      await postForm(API_BASE + '/check-in', form);
+    }
+
+    async function checkOut() {
+      const plate = document.getElementById('outPlate').value.trim();
+      const file = document.getElementById('outImage').files[0];
+      if (!plate && !file) {
+        setResult({ error: 'Missing plate or image' });
+        return;
+      }
+      const form = new FormData();
+      if (plate) form.append('plate', plate);
+      if (file) form.append('image', file);
+      await postForm(API_BASE + '/check-out', form);
+    }
+
+    async function loadHistory() {
+      const res = await fetch(API_BASE + '/history');
+      const json = await res.json();
+      setResult(json);
+    }
+
+    async function loadSpots() {
+      const res = await fetch(API_BASE + '/spots');
+      const json = await res.json();
+      setResult(json);
+    }
+  </script>
+</body>
+</html>
+
