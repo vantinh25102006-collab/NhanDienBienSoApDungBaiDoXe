@@ -1,0 +1,10 @@
+image=LicPlateImages/18.png
+gt_raw=29-G1 333.33
+gt_clean=29G133333
+num_rois=5
+pred_str=29G13
+idx=0 gt=2 pred=2 OK
+idx=1 gt=9 pred=9 OK
+idx=2 gt=G pred=G OK
+idx=3 gt=1 pred=1 OK
+idx=4 gt=3 pred=3 OK

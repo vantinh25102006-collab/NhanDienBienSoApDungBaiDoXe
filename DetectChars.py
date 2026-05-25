@@ -186,16 +186,31 @@ def detectCharsInPlates(listOfPossiblePlates):
         intLenOfLongestListOfChars = 0
         intIndexOfLongestListOfChars = 0
 
-                # loop through all the vectors of matching chars, get the index of the one with the most chars
+        # Heuristic: prefer groups with char count close to typical license plate length.
+        # This helps avoid picking a noisy extra contour as the "longest" group.
+        TARGET_CHAR_COUNT = 7
+        BEST_SCORE = -1
+
+
+                # loop through all the vectors of matching chars.
+        # Prefer a group size close to TARGET_CHAR_COUNT to reduce the chance of picking a noisy extra char.
         for i in range(0, len(listOfListsOfMatchingCharsInPlate)):
-            if len(listOfListsOfMatchingCharsInPlate[i]) > intLenOfLongestListOfChars:
-                intLenOfLongestListOfChars = len(listOfListsOfMatchingCharsInPlate[i])
+            group = listOfListsOfMatchingCharsInPlate[i]
+            group_len = len(group)
+
+            # Score: closer to TARGET_CHAR_COUNT is better; tie-break by higher length
+            score = -abs(group_len - TARGET_CHAR_COUNT)
+
+            if score > BEST_SCORE or (score == BEST_SCORE and group_len > intLenOfLongestListOfChars):
+                BEST_SCORE = score
+                intLenOfLongestListOfChars = group_len
                 intIndexOfLongestListOfChars = i
             # end if
         # end for
 
-                # suppose that the longest list of matching chars within the plate is the actual list of chars
+                # suppose that the selected list of matching chars within the plate is the actual list of chars
         longestListOfMatchingCharsInPlate = listOfListsOfMatchingCharsInPlate[intIndexOfLongestListOfChars]
+
 
         if Main.showSteps == True: # show steps ###################################################
             imgContours = np.zeros((height, width, 3), np.uint8)
@@ -211,6 +226,13 @@ def detectCharsInPlates(listOfPossiblePlates):
         # end if # show steps #####################################################################
 
         possiblePlate.strChars = recognizeCharsInPlate(possiblePlate.imgThresh, longestListOfMatchingCharsInPlate)
+
+        # Extra safety: dataset labels only include A-Z/0-9.
+        # Some spurious contours can be recognized as characters; cap length to avoid trailing noise.
+        # Typical plate samples in this repo are 7-8 chars (after cleaning punctuation/spaces).
+        if len(possiblePlate.strChars) > 8:
+            possiblePlate.strChars = possiblePlate.strChars[:8]
+
 
         if Main.showSteps == True: # show steps ###################################################
             print("chars found in plate number " + str(

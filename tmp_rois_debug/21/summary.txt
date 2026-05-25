@@ -1,0 +1,12 @@
+image=LicPlateImages/21.png
+gt_raw=LASTBUG
+gt_clean=LASTBUG
+num_rois=7
+pred_str=ASTBUGP
+idx=0 gt=L pred=A WRONG
+idx=1 gt=A pred=S WRONG
+idx=2 gt=S pred=T WRONG
+idx=3 gt=T pred=B WRONG
+idx=4 gt=B pred=U WRONG
+idx=5 gt=U pred=G WRONG
+idx=6 gt=G pred=P WRONG

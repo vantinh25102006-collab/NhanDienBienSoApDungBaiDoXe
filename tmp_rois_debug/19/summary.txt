@@ -1,0 +1,13 @@
+image=LicPlateImages/19.png
+gt_raw=18A12345
+gt_clean=18A12345
+num_rois=8
+pred_str=19A12345
+idx=0 gt=1 pred=1 OK
+idx=1 gt=8 pred=9 WRONG
+idx=2 gt=A pred=A OK
+idx=3 gt=1 pred=1 OK
+idx=4 gt=2 pred=2 OK
+idx=5 gt=3 pred=3 OK
+idx=6 gt=4 pred=4 OK
+idx=7 gt=5 pred=5 OK
