@@ -1,0 +1,11 @@
+image=LicPlateImages/29.png
+gt_raw=A153TD
+gt_clean=A153TD
+num_rois=6
+pred_str=A153TD
+idx=0 gt=A pred=A OK
+idx=1 gt=1 pred=1 OK
+idx=2 gt=5 pred=5 OK
+idx=3 gt=3 pred=3 OK
+idx=4 gt=T pred=T OK
+idx=5 gt=D pred=D OK

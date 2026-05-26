@@ -1,0 +1,11 @@
+image=LicPlateImages/28.png
+gt_raw=29K644743
+gt_clean=29K644743
+num_rois=6
+pred_str=29K644
+idx=0 gt=2 pred=2 OK
+idx=1 gt=9 pred=9 OK
+idx=2 gt=K pred=K OK
+idx=3 gt=6 pred=6 OK
+idx=4 gt=4 pred=4 OK
+idx=5 gt=4 pred=4 OK

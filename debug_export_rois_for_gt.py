@@ -130,9 +130,7 @@ if __name__ == "__main__":
     os.chdir(repo_root)
 
     pairs = [
-        ("LicPlateImages/18.png", "29-G1 333.33"),
-        ("LicPlateImages/21.png", "LASTBUG"),
-        ("LicPlateImages/19.png", "18A12345")
+        ("LicPlateImages/29.png", "A153TD")
     ]
 
     for img_path, gt in pairs:

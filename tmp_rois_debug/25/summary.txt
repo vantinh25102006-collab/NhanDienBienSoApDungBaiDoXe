@@ -1,0 +1,10 @@
+image=LicPlateImages/25.png
+gt_raw=76A07676
+gt_clean=76A07676
+num_rois=5
+pred_str=76A07
+idx=0 gt=7 pred=7 OK
+idx=1 gt=6 pred=6 OK
+idx=2 gt=A pred=A OK
+idx=3 gt=0 pred=0 OK
+idx=4 gt=7 pred=7 OK
