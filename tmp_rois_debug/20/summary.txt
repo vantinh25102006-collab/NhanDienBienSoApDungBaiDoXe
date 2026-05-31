@@ -2,10 +2,10 @@ image=LicPlateImages/20.png
 gt_raw=MEGMEG
 gt_clean=MEGMEG
 num_rois=6
-pred_str=NEGMF6
+pred_str=NEGMFG
 idx=0 gt=M pred=N WRONG
 idx=1 gt=E pred=E OK
 idx=2 gt=G pred=G OK
 idx=3 gt=M pred=M OK
 idx=4 gt=E pred=F WRONG
-idx=5 gt=G pred=6 WRONG
+idx=5 gt=G pred=G OK
