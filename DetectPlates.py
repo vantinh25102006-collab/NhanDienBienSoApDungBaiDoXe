@@ -12,8 +12,13 @@ import PossiblePlate
 import PossibleChar
 
 # module level variables ##########################################################################
-PLATE_WIDTH_PADDING_FACTOR = 1.3
-PLATE_HEIGHT_PADDING_FACTOR = 1.5
+
+# VN motorbike plates đôi khi là dạng 2 dòng; tăng padding để crop không bị cắt cụt.
+PLATE_WIDTH_PADDING_FACTOR = 1.7
+PLATE_HEIGHT_PADDING_FACTOR = 1.6
+
+
+
 
 ###################################################################################################
 def detectPlatesInScene(imgOriginalScene):

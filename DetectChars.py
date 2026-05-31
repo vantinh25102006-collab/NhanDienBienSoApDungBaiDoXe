@@ -186,20 +186,28 @@ def detectCharsInPlates(listOfPossiblePlates):
         intLenOfLongestListOfChars = 0
         intIndexOfLongestListOfChars = 0
 
-        # Heuristic: prefer groups with char count close to typical license plate length.
-        # This helps avoid picking a noisy extra contour as the "longest" group.
-        TARGET_CHAR_COUNT = 7
-        BEST_SCORE = -1
+        # Heuristic (tuned for VN motorbike plates):
+        # - VN motorbike plate layouts may have a variable number of characters.
+        # - Using a hard TARGET_CHAR_COUNT often selects the wrong group.
+        # - Instead, score groups that fall into a reasonable size range and prefer longer groups.
+        #
+        # Tune these if you have different plate formats.
+        MIN_GROUP_CHARS = 4
+        MAX_GROUP_CHARS = 10
 
+        # Score prefers: (a) group within range, (b) longer length inside the range.
+        BEST_SCORE = -1e9
 
-                # loop through all the vectors of matching chars.
-        # Prefer a group size close to TARGET_CHAR_COUNT to reduce the chance of picking a noisy extra char.
         for i in range(0, len(listOfListsOfMatchingCharsInPlate)):
             group = listOfListsOfMatchingCharsInPlate[i]
             group_len = len(group)
 
-            # Score: closer to TARGET_CHAR_COUNT is better; tie-break by higher length
-            score = -abs(group_len - TARGET_CHAR_COUNT)
+            if group_len < MIN_GROUP_CHARS or group_len > MAX_GROUP_CHARS:
+                # strong penalty for groups that are too small/too large (likely noise)
+                score = -1e6 - abs(group_len - intLenOfLongestListOfChars)
+            else:
+                # prefer longer, but not wildly; longer within reasonable bounds is usually better
+                score = float(group_len)
 
             if score > BEST_SCORE or (score == BEST_SCORE and group_len > intLenOfLongestListOfChars):
                 BEST_SCORE = score
@@ -208,8 +216,9 @@ def detectCharsInPlates(listOfPossiblePlates):
             # end if
         # end for
 
-                # suppose that the selected list of matching chars within the plate is the actual list of chars
+        # suppose that the selected list of matching chars within the plate is the actual list of chars
         longestListOfMatchingCharsInPlate = listOfListsOfMatchingCharsInPlate[intIndexOfLongestListOfChars]
+
 
 
         if Main.showSteps == True: # show steps ###################################################
@@ -229,9 +238,10 @@ def detectCharsInPlates(listOfPossiblePlates):
 
         # Extra safety: dataset labels only include A-Z/0-9.
         # Some spurious contours can be recognized as characters; cap length to avoid trailing noise.
-        # Typical plate samples in this repo are 7-8 chars (after cleaning punctuation/spaces).
-        if len(possiblePlate.strChars) > 8:
-            possiblePlate.strChars = possiblePlate.strChars[:8]
+        # Motorbike plates can vary in length, so raise the cap.
+        if len(possiblePlate.strChars) > 10:
+            possiblePlate.strChars = possiblePlate.strChars[:10]
+
 
 
         if Main.showSteps == True: # show steps ###################################################
@@ -424,9 +434,74 @@ def recognizeCharsInPlate(imgThresh, listOfMatchingChars):
 
     imgThreshColor = np.zeros((height, width, 3), np.uint8)
 
-    listOfMatchingChars.sort(key = lambda matchingChar: matchingChar.intCenterX)        # sort chars from left to right
-
     cv2.cvtColor(imgThresh, cv2.COLOR_GRAY2BGR, imgThreshColor)                     # make color version of threshold image so we can draw contours in color on it
+
+    # Heuristic for 2-line plates:
+    # - If chars form two rows (different intCenterY), recognize each row separately (left->right)
+    # - Then concatenate without separator: line1 + line2
+    # This matches your requirement: "90-H7" + "7068" => "90-H77068".
+    ys = [c.intCenterY for c in listOfMatchingChars]
+    if len(ys) >= 4:
+        min_y, max_y = min(ys), max(ys)
+        # If vertical spread is small, treat as single row
+        if (max_y - min_y) > (max(ys) * 0.03 + 5):
+            sorted_by_y = sorted(listOfMatchingChars, key=lambda c: c.intCenterY)
+            mid = len(sorted_by_y) // 2
+            top_y_median = int(np.median([c.intCenterY for c in sorted_by_y[:max(1, mid)]]))
+            bottom_y_median = int(np.median([c.intCenterY for c in sorted_by_y[mid:]]))
+            y_thresh = int((top_y_median + bottom_y_median) / 2)
+
+            top_chars = [c for c in listOfMatchingChars if c.intCenterY <= y_thresh]
+            bottom_chars = [c for c in listOfMatchingChars if c.intCenterY > y_thresh]
+
+            # fallback to single-row if split degenerates
+            if len(top_chars) >= 2 and len(bottom_chars) >= 2:
+                ordered_groups = []
+                top_chars.sort(key=lambda c: c.intCenterX)
+                bottom_chars.sort(key=lambda c: c.intCenterX)
+                ordered_groups.append(top_chars)
+                ordered_groups.append(bottom_chars)
+
+                for group in ordered_groups:
+                    for currentChar in group:
+                        pt1 = (currentChar.intBoundingRectX, currentChar.intBoundingRectY)
+                        pt2 = (
+                            currentChar.intBoundingRectX + currentChar.intBoundingRectWidth,
+                            currentChar.intBoundingRectY + currentChar.intBoundingRectHeight,
+                        )
+
+                        cv2.rectangle(imgThreshColor, pt1, pt2, Main.SCALAR_GREEN, 2)
+
+                        imgROI = imgThresh[
+                            currentChar.intBoundingRectY : currentChar.intBoundingRectY + currentChar.intBoundingRectHeight,
+                            currentChar.intBoundingRectX : currentChar.intBoundingRectX + currentChar.intBoundingRectWidth,
+                        ]
+
+                        imgROIResized = cv2.resize(
+                            imgROI,
+                            (RESIZED_CHAR_IMAGE_WIDTH, RESIZED_CHAR_IMAGE_HEIGHT),
+                            interpolation=cv2.INTER_NEAREST,
+                        )
+
+                        if imgROIResized is None or imgROIResized.size == 0:
+                            continue
+
+                        imgROIResized = imgROIResized.astype(np.uint8)
+                        npaROIResized = imgROIResized.reshape(
+                            (1, RESIZED_CHAR_IMAGE_WIDTH * RESIZED_CHAR_IMAGE_HEIGHT)
+                        )
+                        npaROIResized = np.float32(npaROIResized)
+
+                        retval, npaResults, neigh_resp, dists = kNearest.findNearest(npaROIResized, k=1)
+                        strCurrentChar = str(chr(int(npaResults[0][0])))
+                        strChars = strChars + strCurrentChar
+
+                if Main.showSteps == True:
+                    cv2.imshow("10", imgThreshColor)
+                return strChars
+
+    # Single-row fallback (original behavior)
+    listOfMatchingChars.sort(key=lambda matchingChar: matchingChar.intCenterX)        # sort chars from left to right
 
     for currentChar in listOfMatchingChars:                                         # for each char in plate
         pt1 = (currentChar.intBoundingRectX, currentChar.intBoundingRectY)
@@ -434,21 +509,25 @@ def recognizeCharsInPlate(imgThresh, listOfMatchingChars):
 
         cv2.rectangle(imgThreshColor, pt1, pt2, Main.SCALAR_GREEN, 2)           # draw green box around the char
 
-                # crop char out of threshold image
         imgROI = imgThresh[currentChar.intBoundingRectY : currentChar.intBoundingRectY + currentChar.intBoundingRectHeight,
                            currentChar.intBoundingRectX : currentChar.intBoundingRectX + currentChar.intBoundingRectWidth]
 
-        imgROIResized = cv2.resize(imgROI, (RESIZED_CHAR_IMAGE_WIDTH, RESIZED_CHAR_IMAGE_HEIGHT))           # resize image, this is necessary for char recognition
+        imgROIResized = cv2.resize(imgROI, (RESIZED_CHAR_IMAGE_WIDTH, RESIZED_CHAR_IMAGE_HEIGHT), interpolation=cv2.INTER_NEAREST)
 
-        npaROIResized = imgROIResized.reshape((1, RESIZED_CHAR_IMAGE_WIDTH * RESIZED_CHAR_IMAGE_HEIGHT))        # flatten image into 1d numpy array
+        if imgROIResized is None or imgROIResized.size == 0:
+            continue
 
-        npaROIResized = np.float32(npaROIResized)               # convert from 1d numpy array of ints to 1d numpy array of floats
+        imgROIResized = imgROIResized.astype(np.uint8)
+
+        npaROIResized = imgROIResized.reshape((1, RESIZED_CHAR_IMAGE_WIDTH * RESIZED_CHAR_IMAGE_HEIGHT))
+        npaROIResized = np.float32(npaROIResized)
 
         retval, npaResults, neigh_resp, dists = kNearest.findNearest(npaROIResized, k = 1)              # finally we can call findNearest !!!
 
         strCurrentChar = str(chr(int(npaResults[0][0])))            # get character from results
 
         strChars = strChars + strCurrentChar                        # append current char to full string
+
 
     # end for
 
