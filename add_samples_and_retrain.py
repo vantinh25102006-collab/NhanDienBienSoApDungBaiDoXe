@@ -147,7 +147,7 @@ if __name__ == "__main__":
     os.chdir(repo_root)
 
     pairs = [
-        ("LicPlateImages/20.png", "MEGMEG")
+        ("LicPlateImages/32.png", "99H77060")
 
     ]
 
