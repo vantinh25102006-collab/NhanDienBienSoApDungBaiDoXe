@@ -115,29 +115,29 @@
         <button class="btn-secondary" onclick="openSpotsModal()">Sơ đồ vị trí trong bãi</button>
       </div>
 
-
       <div style="margin-top: 10px;">
         <h2 style="margin:0 0 10px;">Xe đang đỗ</h2>
-        <div style="max-height: 260px; overflow:auto; border:1px solid #eef2f7; border-radius:12px;">
+    <div style="max-height: 220px; overflow:auto; border:1px solid #eef2f7; border-radius:12px;">
           <table>
             <thead>
               <tr>
                 <th>Biển số</th>
                 <th>Ngày giờ vào</th>
                 <th>Vị trí</th>
+                <th style="width:220px;">Thao tác</th>
               </tr>
             </thead>
             <tbody id="activeTbody">
-              <tr><td colspan="3" class="muted">Chưa tải</td></tr>
+              <tr><td colspan="4" class="muted">Chưa tải</td></tr>
             </tbody>
           </table>
         </div>
-        <div class="muted" style="margin-top:8px;">Bấm “Mở danh sách…” để tìm kiếm chi tiết.</div>
+        <div class="muted" style="margin-top:8px;">Click dòng để focus, sau đó bấm <b>Sửa</b>/<b>Xóa</b>.</div>
       </div>
 
       <div style="margin-top: 18px;">
         <h2 style="margin:0 0 10px;">Lịch sử đổ xe</h2>
-        <div style="max-height: 260px; overflow:auto; border:1px solid #eef2f7; border-radius:12px;">
+        <div style="max-height: 220px; overflow:auto; border:1px solid #eef2f7; border-radius:12px;">
           <table>
             <thead>
               <tr>
@@ -146,16 +146,52 @@
                 <th>Lấy (OUT)</th>
                 <th>Giờ</th>
                 <th>Tiền</th>
+                <th style="width:120px;">Thao tác</th>
               </tr>
             </thead>
             <tbody id="historyTbody">
-              <tr><td colspan="5" class="muted">Chưa tải</td></tr>
+              <tr><td colspan="6" class="muted">Chưa tải</td></tr>
             </tbody>
           </table>
         </div>
-        <div class="muted" style="margin-top:8px;">Bấm “Mở lịch sử…” để lọc theo thời gian/biển số.</div>
+        <div class="muted" style="margin-top:8px;">Click dòng để focus, sau đó bấm <b>Sửa</b>/<b>Xóa</b>.</div>
       </div>
     </div>
+
+    <!-- Modal edit plate (both active/history) -->
+    <div id="editPlateModal" style="display:none; position:fixed; inset:0; background:rgba(2,6,23,.65); z-index:10001;">
+      <div style="position:absolute; inset:0; background:#fff; margin:16px; border-radius:14px; overflow:hidden; display:flex; flex-direction:column;">
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background:#111827; color:#fff; gap:12px;">
+          <div>
+            <b id="editPlateTitle">Sửa biển số</b>
+            <div style="font-size:12px; opacity:.85; margin-top:4px;" id="editPlateSubtitle"></div>
+          </div>
+          <button class="btn-secondary" style="width:auto; padding:8px 12px; background:#374151;" onclick="closeEditPlateModal()">X</button>
+        </div>
+
+        <div style="padding:14px 16px; overflow:auto; flex:1;">
+          <div class="grid3" style="align-items:start;">
+            <div class="card" style="padding:12px; border-radius:12px;">
+              <b style="display:block; margin-bottom:8px;">Thông tin</b>
+              <div id="editInfoText" style="font-size:13px; line-height:1.6;"></div>
+            </div>
+
+            <div class="card" style="padding:12px; border-radius:12px;">
+              <label>Biển số</label>
+              <input id="editPlateInput" type="text" disabled />
+              <div class="muted" style="margin-top:8px;">Sau khi sửa, bấm <b>Lưu</b>. Các ô khác không thay đổi.</div>
+            </div>
+
+            <div class="card" style="padding:12px; border-radius:12px;">
+              <b style="display:block; margin-bottom:8px;">Trạng thái</b>
+              <div id="editStatusText" style="font-size:13px; line-height:1.6;"></div>
+              <button id="editSaveBtn" class="btn-primary" style="margin-top:12px;" onclick="saveEditPlate()">Lưu</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
 
     <!-- Modal fullscreen */ -->
     <div id="detailsModal" style="display:none; position:fixed; inset:0; background:rgba(2,6,23,.65); z-index:9999;">
@@ -259,6 +295,10 @@
 
 <script>
 
+  // ========= NOTE =========
+  // Viết lại phần "Sửa/Lưu/Xóa" (active/history) để tránh lỗi JS runtime.
+  // ========= IMPORTANT =========
+
   const API_BASE = '';
 
   let currentMode = 'IN'; // IN | OUT
@@ -278,6 +318,7 @@
   const elComboSelect = document.getElementById('comboSelect');
 
   function setResult(obj) {
+    if (!elResult) return;
     elResult.textContent = JSON.stringify(obj, null, 2);
   }
 
@@ -311,6 +352,7 @@
   }
 
   function hideComboBox() {
+    if (!elComboBoxWrap) return;
     elComboBoxWrap.style.display = 'none';
     elComboSelect.innerHTML = '';
     comboPayload = null;
@@ -358,23 +400,103 @@
     if (elSpotDetailModal) elSpotDetailModal.style.display = 'none';
   }
 
+  // ===== Expanded “spot select” panel (đẩy 30% sang trái) =====
+  let spotsExpanded = false;
+  let selectedSpotId = null;
+
+  function ensureExpandedLayout() {
+    const grid2 = document.querySelector('.grid2');
+    if (!grid2) return;
+    grid2.style.gridTemplateColumns = spotsExpanded ? '0.6fr 0.4fr' : '1.1fr 0.9fr';
+  }
+
+  function openExpandedPanelForSpot(activeItem) {
+    if (!activeItem) return;
+
+    selectedSpotId = activeItem.spot_id;
+    spotsExpanded = true;
+    ensureExpandedLayout();
+
+    let panel = document.getElementById('spotsInlinePanel');
+    if (!panel) {
+      const modalRoot = document.getElementById('spotsModal');
+      if (!modalRoot) return;
+
+      panel = document.createElement('div');
+      panel.style.position = 'absolute';
+      panel.style.top = '64px';
+      panel.style.right = '16px';
+      panel.style.width = '320px';
+      panel.style.zIndex = '10000';
+      panel.style.maxHeight = 'calc(100% - 84px)';
+      panel.style.overflow = 'auto';
+      panel.id = 'spotsInlinePanel';
+      panel.style.marginTop = '12px';
+      panel.style.padding = '12px';
+      panel.style.border = '1px solid #eef2f7';
+      panel.style.borderRadius = '12px';
+      panel.style.background = '#fff';
+      panel.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;">
+          <div>
+            <b>Thông tin xe tại spot</b>
+            <div style="font-size:12px;opacity:.85;margin-top:4px;" id="inlinePanelSub">Đang chọn...</div>
+          </div>
+          <button class="btn-secondary" style="width:auto;padding:8px 12px;background:#374151;" onclick="closeExpandedSpotsPanel()">-</button>
+        </div>
+        <div id="inlinePanelInfo" style="font-size:13px;line-height:1.6;"></div>
+        <div id="inlinePanelImageWrap" style="margin-top:10px;">
+          <img id="inlinePanelImage" style="width:100%;max-height:180px;object-fit:contain;border:1px dashed #cbd5e1;border-radius:12px;background:#f8fafc;" />
+          <div class="muted" style="margin-top:8px;" id="inlinePanelImageHint"></div>
+        </div>
+      `;
+      modalRoot.appendChild(panel);
+    }
+
+    document.getElementById('inlinePanelSub').textContent = `Spot ${activeItem.spot_id}`;
+    document.getElementById('inlinePanelInfo').innerHTML = `
+      <div><b>Biển số:</b> ${plateOrDash(activeItem.plate)}</div>
+      <div><b>Ngày giờ vào:</b> ${formatDateTime(activeItem.time_in || '')}</div>
+      <div><b>Vị trí:</b> ${activeItem.spot_id || '-'}</div>
+    `;
+
+    const img = document.getElementById('inlinePanelImage');
+    const hint = document.getElementById('inlinePanelImageHint');
+    if (activeItem.last_image_path) {
+      const filename = activeItem.last_image_path.split(/[/\\]/).pop();
+      img.src = API_BASE + `/tmp_uploads/${encodeURIComponent(filename)}`;
+      hint.textContent = 'Ảnh nhận diện từ upload gần nhất.';
+    } else {
+      img.removeAttribute('src');
+      hint.textContent = 'Chưa có ảnh nhận diện cho spot này.';
+    }
+  }
+
+  function closeExpandedSpotsPanel() {
+    spotsExpanded = false;
+    selectedSpotId = null;
+    ensureExpandedLayout();
+    const panel = document.getElementById('spotsInlinePanel');
+    if (panel) panel.remove();
+  }
+
+  window.closeExpandedSpotsPanel = closeExpandedSpotsPanel;
+
   async function openSpotsModal() {
     if (!elSpotsModal) return;
     elSpotsModal.style.display = 'block';
 
     elSpotsGrid.innerHTML = '';
-    elSpotsError.style.display = 'none';
-
+    if (elSpotsError) elSpotsError.style.display = 'none';
     elSpotsGrid.innerHTML = '<div class="muted">Đang tải...</div>';
 
     try {
       const data = await loadSpotsAndActive();
       spotsDataCache = data.spots;
       activeItemsCache = data.active;
-
       renderSpotsGrid();
     } catch (e) {
-      elSpotsError.style.display = 'block';
+      if (elSpotsError) elSpotsError.style.display = 'block';
       elSpotsGrid.innerHTML = '';
     }
   }
@@ -387,34 +509,20 @@
       if (it.spot_id) activeBySpot[it.spot_id] = it;
     });
 
-    // Determine columns by max spot count; keep 10 columns like modal css
-    const total = spotsDataCache.length;
-    const items = total ? spotsDataCache : [];
-
     elSpotsGrid.innerHTML = '';
+    if (!spotsDataCache.length) return;
 
-    if (!items.length) {
-      elSpotsError.style.display = 'block';
-      elSpotsGrid.innerHTML = '';
-      return;
-    }
-
-    items.forEach((sp, idx) => {
-      const spotId = sp.spot_id;
-      const active = activeBySpot[spotId];
+    spotsDataCache.forEach(sp => {
+      const active = activeBySpot[sp.spot_id];
       const hasCar = !!active;
 
-      // color: red if has car, green if empty (white/transparent for non-active if you want)
       let bg = '#22c55e';
       if (hasCar) bg = '#dc2626';
-      else {
-        // if is_active false => white
-        if (sp.is_active === 0) bg = '#f3f4f6';
-      }
+      else if (sp.is_active === 0) bg = '#f3f4f6';
 
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.textContent = spotId;
+      btn.textContent = sp.spot_id;
       btn.style.width = '100%';
       btn.style.height = '44px';
       btn.style.borderRadius = '8px';
@@ -429,7 +537,7 @@
       btn.style.padding = '0';
 
       if (hasCar) {
-        btn.addEventListener('click', () => openSpotDetail(active));
+        btn.addEventListener('click', () => openExpandedPanelForSpot(active));
       } else {
         btn.disabled = true;
         btn.style.opacity = '0.95';
@@ -442,16 +550,11 @@
   function openSpotDetail(activeItem) {
     if (!activeItem) return;
 
-    const spotId = activeItem.spot_id;
-    const plate = activeItem.plate;
-    const timeIn = activeItem.time_in;
+    elSpotDetailTitle.textContent = `Spot ${activeItem.spot_id} - ${activeItem.plate}`;
+    elSpotDetailSubtitle.textContent = `Đang đỗ từ: ${formatDateTime(activeItem.time_in || '')}`;
 
-    elSpotDetailTitle.textContent = `Spot ${spotId} - ${plate}`;
-    elSpotDetailSubtitle.textContent = `Đang đỗ từ: ${formatDateTime(timeIn || '')}`;
-
-    const lastImagePath = activeItem.last_image_path;
-    if (lastImagePath) {
-      const filename = lastImagePath.split(/[/\\]/).pop();
+    if (activeItem.last_image_path) {
+      const filename = activeItem.last_image_path.split(/[/\\]/).pop();
       elSpotDetailImage.src = API_BASE + `/tmp_uploads/${encodeURIComponent(filename)}`;
       elSpotDetailImageHint.textContent = 'Ảnh nhận diện từ upload gần nhất.';
     } else {
@@ -460,18 +563,15 @@
     }
 
     elSpotDetailInfo.innerHTML = `
-      <div><b>Biển số:</b> ${plateOrDash(plate)}</div>
-      <div><b>Ngày giờ vào:</b> ${formatDateTime(timeIn || '')}</div>
-      <div><b>Vị trí:</b> ${spotId || '-'}</div>
+      <div><b>Biển số:</b> ${plateOrDash(activeItem.plate)}</div>
+      <div><b>Ngày giờ vào:</b> ${formatDateTime(activeItem.time_in || '')}</div>
+      <div><b>Vị trí:</b> ${activeItem.spot_id || '-'}</div>
     `;
 
-    elSpotDetailModal.style.display = 'block';
+    if (elSpotDetailModal) elSpotDetailModal.style.display = 'block';
   }
 
-
   // ===== Modal details (active/history) =====
-
-  // Ghi chú: phần modal được thêm mới. Đảm bảo không phá các hàm cũ (combo/check-in/out).
   const elDetailsModal = document.getElementById('detailsModal');
   const elModalTitle = document.getElementById('modalTitle');
   const elModalSubtitle = document.getElementById('modalSubtitle');
@@ -481,23 +581,19 @@
   const elModalHeadRow = document.getElementById('modalHeadRow');
   const elModalBody = document.getElementById('modalBody');
 
-
-  let modalMode = 'active'; // active | history
-  let modalItemsCache = []; // data loaded
+  let modalMode = 'active';
+  let modalItemsCache = [];
 
   function openDetailsModal(mode) {
     modalMode = mode;
     elModalTitle.textContent = (mode === 'active') ? 'Chi tiết xe đang đỗ' : 'Chi tiết lịch sử đổ xe';
     elModalSubtitle.textContent = 'Lọc theo thời gian và/hoặc biển số. Kết quả cập nhật realtime.';
 
-    // reset inputs
     elTimeFrom.value = '';
     elTimeTo.value = '';
     elPlateQuery.value = '';
 
     elDetailsModal.style.display = 'block';
-
-    // load data once opened
     loadModalDataAndRender();
   }
 
@@ -507,11 +603,9 @@
   }
 
   function parseDatetimeLocal(value) {
-    // value example: "2026-06-06T10:30"
     if (!value) return null;
     const d = new Date(value);
-    if (isNaN(d.getTime())) return null;
-    return d;
+    return isNaN(d.getTime()) ? null : d;
   }
 
   function dateInRange(date, fromDate, toDate) {
@@ -536,19 +630,16 @@
     const toDate = parseDatetimeLocal(elTimeTo.value);
 
     return (items || []).filter(it => {
-      // plate partial match ("ghi tới đâu" -> filter realtime)
       if (qPlate) {
         const p = normalizePlate(it.plate);
         if (!p.includes(qPlate)) return false;
       }
 
-      // time filter
       if (fromDate || toDate) {
         if (modalMode === 'active') {
           const t = it.time_in ? new Date(it.time_in) : null;
           if (!dateInRange(t, fromDate, toDate)) return false;
         } else {
-          // history: use time_out if exists else time_in
           const timeStr = it.time_out || it.time_in;
           const t = timeStr ? new Date(timeStr) : null;
           if (!dateInRange(t, fromDate, toDate)) return false;
@@ -558,6 +649,19 @@
       return true;
     });
   }
+
+  function openEditActiveByPlate(plate) {
+    const p = (plate || '').toString().trim().toUpperCase();
+    if (!p) return;
+
+    const item = (modalItemsCache || []).find(it => (it.plate || '').toString().trim().toUpperCase() === p);
+    if (!item) return;
+
+    openEditPlateModalForActive(item);
+  }
+
+  // Expose for inline onclick
+  window.openEditActiveByPlate = openEditActiveByPlate;
 
   function renderModalTable(items) {
     const data = items || [];
@@ -570,13 +674,26 @@
           <th>Vị trí</th>
         </tr>
       `;
-      elModalBody.innerHTML = data.length ? data.map(it => `
-        <tr>
-          <td><b>${it.plate || ''}</b></td>
-          <td>${formatDateTime(it.time_in || '')}</td>
-          <td>${it.spot_id || '-'}</td>
-        </tr>
-      `).join('') : '<tr><td colspan="3" class="muted">Không có kết quả.</td></tr>';
+
+      elModalBody.innerHTML = data.length
+        ? data.map(it => {
+            const plate = (it.plate || '').toString().trim();
+            return `
+              <tr data-plate-modal="${plate.replace(/\"/g,'')}" >
+                <td><b>${plate}</b></td>
+                <td>${formatDateTime(it.time_in || '')}</td>
+                <td>${it.spot_id || '-'}</td>
+                <td>
+                  <div style="display:flex;gap:8px;">
+                    <button type="button" class="btn-secondary" style="width:auto;padding:8px 10px;" onclick="event.stopPropagation(); openEditActiveByPlate('${plate.replace(/'/g,"\\'")}')">Sửa</button>
+                    <button type="button" class="btn-danger" style="width:auto;padding:8px 10px;" onclick="event.stopPropagation(); deleteActiveByPlate('${plate.replace(/'/g,"\\'")}')">Xóa</button>
+                  </div>
+                </td>
+              </tr>
+            `;
+          }).join('')
+        : '<tr><td colspan="4" class="muted">Không có kết quả.</td></tr>';
+
     } else {
       elModalHeadRow.innerHTML = `
         <tr>
@@ -588,56 +705,55 @@
         </tr>
       `;
 
-      elModalBody.innerHTML = data.length ? data.map(it => {
-        const timeIn = it.time_in ? formatDateTime(it.time_in) : '-';
-        const timeOut = it.time_out ? formatDateTime(it.time_out) : '-';
-        const durationSec = it.duration_seconds;
-        const hours = (durationSec === null || durationSec === undefined) ? '-' : hoursFromSeconds(durationSec);
-        const fee = it.fee_vnd === null || it.fee_vnd === undefined ? '-' : `${Number(it.fee_vnd).toLocaleString('vi-VN')} VND`;
-        return `
-          <tr>
-            <td><b>${it.plate || ''}</b></td>
-            <td>${timeIn}</td>
-            <td>${timeOut}</td>
-            <td>${hours}</td>
-            <td>${fee}</td>
-          </tr>
-        `;
-      }).join('') : '<tr><td colspan="5" class="muted">Không có kết quả.</td></tr>';
+      elModalBody.innerHTML = data.length
+        ? data.map(it => {
+            const timeIn = it.time_in ? formatDateTime(it.time_in) : '-';
+            const timeOut = it.time_out ? formatDateTime(it.time_out) : '-';
+            const durationSec = it.duration_seconds;
+            const hours = (durationSec === null || durationSec === undefined) ? '-' : hoursFromSeconds(durationSec);
+            const fee = it.fee_vnd === null || it.fee_vnd === undefined ? '-' : `${Number(it.fee_vnd).toLocaleString('vi-VN')} VND`;
+            return `
+              <tr>
+                <td><b>${it.plate || ''}</b></td>
+                <td>${timeIn}</td>
+                <td>${timeOut}</td>
+                <td>${hours}</td>
+                <td>${fee}</td>
+                <td>
+                  <div style="display:flex;gap:8px;">
+                    <button type="button" class="btn-danger" style="width:auto;padding:8px 10px;" onclick="event.stopPropagation(); deleteHistoryByEventId('${it.event_id}')">Xóa</button>
+                  </div>
+                </td>
+              </tr>
+            `;
+          }).join('')
+        : '<tr><td colspan="5" class="muted">Không có kết quả.</td></tr>';
     }
   }
 
   function onPlateQueryChange() {
-    if (!modalItemsCache) return;
     const filtered = filterItems(modalItemsCache);
     renderModalTable(filtered);
   }
 
   function applyTimeFilter() {
-    if (!modalItemsCache) return;
     const filtered = filterItems(modalItemsCache);
     renderModalTable(filtered);
   }
 
-  // close modal on ESC
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && elDetailsModal && elDetailsModal.style.display !== 'none') {
       closeDetailsModal();
     }
   });
 
-  // click outside to close
   if (elDetailsModal) {
     elDetailsModal.addEventListener('click', (e) => {
-      if (e.target === elDetailsModal) {
-        closeDetailsModal();
-      }
+      if (e.target === elDetailsModal) closeDetailsModal();
     });
   }
 
-
   async function loadModalDataAndRender() {
-    // show loading
     elModalBody.innerHTML = '<tr><td class="muted" colspan="5">Đang tải...</td></tr>';
 
     if (modalMode === 'active') {
@@ -648,46 +764,25 @@
       modalItemsCache = json.items || [];
     }
 
-    // first render without filters
-    const filtered = filterItems(modalItemsCache);
-    renderModalTable(filtered);
+    renderModalTable(filterItems(modalItemsCache));
   }
 
-
-  function showComboBox(items, plate) {
-    elComboSelect.innerHTML = '';
-    (items || []).forEach((it, idx) => {
-      const opt = document.createElement('option');
-      opt.value = String(idx);
-      opt.textContent = `${it.spot_id || '-'} | ${formatDateTime(it.time_in)}`;
-      elComboSelect.appendChild(opt);
-    });
-
-    comboPayload = { items, plate };
-    elComboBoxWrap.style.display = 'block';
-  }
-
+  // ===== Check-in/out core =====
   async function recognizeFromImage(file) {
     const form = new FormData();
     form.append('image', file);
     const res = await postForm(API_BASE + '/recognize', form);
     if (!res.ok) return null;
-    const plate = (res.json.plate || '').toString().trim().toUpperCase();
-    return plate;
+    return (res.json.plate || '').toString().trim().toUpperCase();
   }
 
   async function onImageSelected() {
     hideComboBox();
-
     const file = elImage.files && elImage.files[0];
     if (!file) return;
 
-    // Preview
-    const url = URL.createObjectURL(file);
-    elImagePreview.src = url;
+    elImagePreview.src = URL.createObjectURL(file);
 
-    // IMPORTANT: Recognize immediately, then lock plate
-    // Reset plate first to avoid stale value/lock issues
     elPlate.disabled = false;
     elPlate.value = '';
     lastRecognizedPlate = '';
@@ -697,7 +792,6 @@
     const plate = await recognizeFromImage(file);
     if (!plate) {
       setResult({ status: 'error', message: 'Không nhận diện được biển số từ ảnh.' });
-      // keep locked behavior? requirement says unlock until recognize; we'll unlock to allow manual fallback
       elPlate.disabled = false;
       return;
     }
@@ -706,7 +800,6 @@
     elPlate.value = plate;
     elPlate.disabled = true;
 
-    // Update active list immediately
     await loadActiveTable();
   }
 
@@ -734,9 +827,6 @@
   async function performActionWithCombo() {
     if (!comboPayload) return;
     hideComboBox();
-
-    // For now backend check-in/out logic only needs plate (and image if provided).
-    // combo box is for UX message requirement; we still perform action using selected plate.
     await performAction();
   }
 
@@ -763,18 +853,26 @@
 
     const res = await postForm(url, form);
     if (!res.ok) {
-      // combo box case: plate already inside when IN
       const err = res.json || {};
       const msg = (err.message || '').toString();
 
       if (msg.toLowerCase().includes('already inside') || msg.toLowerCase().includes('tồn tại')) {
         const activeItems = await fetchActiveItems();
         const same = (activeItems || []).filter(x => (x.plate || '').toString().trim().toUpperCase() === plate);
-        if (same.length === 0) {
+        if (!same.length) {
           setResult({ status: 'error', message: msg, plate });
           return;
         }
-        showComboBox(same, plate);
+        // Combo UI (giữ nguyên) - chỉ hiển thị, action vẫn dùng performAction()
+        elComboSelect.innerHTML = '';
+        same.forEach((it, i) => {
+          const opt = document.createElement('option');
+          opt.value = String(i);
+          opt.textContent = `${it.spot_id || '-'} | ${formatDateTime(it.time_in)}`;
+          elComboSelect.appendChild(opt);
+        });
+        comboPayload = { items: same, plate };
+        elComboBoxWrap.style.display = 'block';
         setResult({ status: 'error', message: msg, plate, combo: true });
         return;
       }
@@ -783,7 +881,6 @@
       return;
     }
 
-    // Success: refresh tables
     await loadActiveTable();
     await loadHistoryTable();
   }
@@ -794,67 +891,259 @@
     return json.items || [];
   }
 
-  async function loadActiveTable() {
-    try {
-      const items = await fetchActiveItems();
-      const tbody = document.getElementById('activeTbody');
-      if (!items || items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="3" class="muted">Hiện chưa có xe nào trong bãi.</td></tr>';
-        return;
-      }
+  function selectRow(tbodyEl, trEl) {
+    if (!tbodyEl || !trEl) return;
+    Array.from(tbodyEl.querySelectorAll('tr')).forEach(r => r.style.outline = 'none');
+    trEl.style.outline = '2px solid #2563eb';
+  }
 
-      tbody.innerHTML = items.map(it => {
-        return `
-          <tr>
-            <td><b>${it.plate || ''}</b></td>
-            <td>${formatDateTime(it.time_in || '')}</td>
-            <td>${it.spot_id || '-'}</td>
-          </tr>
-        `;
-      }).join('');
-    } catch (e) {
-      document.getElementById('activeTbody').innerHTML = '<tr><td colspan="3" class="muted">Lỗi tải danh sách.</td></tr>';
+  // ===== Sửa/Lưu/Xóa =====
+  const elEditPlateModal = document.getElementById('editPlateModal');
+  const elEditPlateTitle = document.getElementById('editPlateTitle');
+  const elEditPlateSubtitle = document.getElementById('editPlateSubtitle');
+  const elEditInfoText = document.getElementById('editInfoText');
+  const elEditStatusText = document.getElementById('editStatusText');
+  const elEditPlateInput = document.getElementById('editPlateInput');
+
+  let focusRowState = {
+    section: null, // 'active' | 'history'
+    plate: null,
+    event_id: null,
+    spot_id: null,
+    time_in: null,
+    time_out: null,
+    status: null,
+  };
+
+  function openEditPlateModalForActive(activeItem) {
+    focusRowState = {
+      section: 'active',
+      plate: activeItem.plate,
+      event_id: null,
+      spot_id: activeItem.spot_id || null,
+      time_in: activeItem.time_in || null,
+      time_out: null,
+      status: 'IN',
+    };
+
+    elEditPlateTitle.textContent = 'Sửa biển số xe đang đỗ';
+    elEditPlateSubtitle.textContent = `Spot ${activeItem.spot_id || '-'} · Đang đỗ từ ${formatDateTime(activeItem.time_in || '')}`;
+    elEditInfoText.innerHTML = `
+      <div><b>Biển số hiện tại:</b> ${activeItem.plate || '-'}</div>
+      <div><b>Vị trí:</b> ${activeItem.spot_id || '-'}</div>
+      <div><b>Ngày giờ vào:</b> ${formatDateTime(activeItem.time_in || '')}</div>
+    `;
+    elEditStatusText.textContent = 'Đang có xe (active_vehicles).';
+    elEditPlateInput.value = (activeItem.plate || '').toString().trim();
+
+    elEditPlateModal.style.display = 'block';
+    elEditPlateInput.disabled = false;
+    setTimeout(() => elEditPlateInput.focus(), 0);
+  }
+
+  function openEditPlateModalForHistory(historyItem) {
+    focusRowState = {
+      section: 'history',
+      plate: historyItem.plate,
+      event_id: historyItem.event_id,
+      spot_id: historyItem.spot_id || null,
+      time_in: historyItem.time_in || null,
+      time_out: historyItem.time_out || null,
+      status: historyItem.status || null,
+    };
+
+    const statusText = (historyItem.status === 'IN') ? 'Đang đổ (IN)' : 'Đã xử lý (OUT)';
+    elEditPlateTitle.textContent = 'Sửa biển số trong lịch sử';
+    elEditPlateSubtitle.textContent = `event_id=${historyItem.event_id} · ${statusText}`;
+    elEditInfoText.innerHTML = `
+      <div><b>Biển số hiện tại:</b> ${historyItem.plate || '-'}</div>
+      <div><b>Spot:</b> ${historyItem.spot_id || '-'}</div>
+      <div><b>IN:</b> ${formatDateTime(historyItem.time_in || '')}</div>
+      <div><b>OUT:</b> ${formatDateTime(historyItem.time_out || '')}</div>
+    `;
+
+    elEditStatusText.textContent = statusText + '.';
+    elEditPlateInput.value = (historyItem.plate || '').toString().trim();
+
+    elEditPlateModal.style.display = 'block';
+    elEditPlateInput.disabled = false;
+    setTimeout(() => elEditPlateInput.focus(), 0);
+  }
+
+  function closeEditPlateModal() {
+    elEditPlateModal.style.display = 'none';
+    focusRowState = { section: null, plate: null, event_id: null, spot_id: null, time_in: null, time_out: null, status: null };
+  }
+
+  async function saveEditPlate() {
+    const newPlate = (elEditPlateInput.value || '').trim().toUpperCase();
+    if (!newPlate) {
+      setResult({ status: 'error', message: 'Biển số không được rỗng.' });
+      return;
+    }
+
+    if (focusRowState.section === 'active') {
+      const form = new FormData();
+      form.append('old_plate', focusRowState.plate);
+      form.append('new_plate', newPlate);
+      const res = await postForm(API_BASE + '/active/update-plate', form);
+      if (!res.ok) return;
+    } else if (focusRowState.section === 'history') {
+      const form = new FormData();
+      form.append('event_id', String(focusRowState.event_id));
+      form.append('new_plate', newPlate);
+      const res = await postForm(API_BASE + '/history/update-plate', form);
+      if (!res.ok) return;
+    } else {
+      return;
+    }
+
+    closeEditPlateModal();
+    await loadActiveTable();
+    await loadHistoryTable();
+
+    // Refresh spots if modal đang mở
+    if (document.getElementById('spotsModal') && document.getElementById('spotsModal').style.display === 'block') {
+      await openSpotsModal();
     }
   }
 
-  async function loadHistoryTable() {
-    try {
-      const res = await fetch(API_BASE + '/history');
-      const json = await res.json();
-      const items = json.items || [];
-      const tbody = document.getElementById('historyTbody');
+  async function deleteActiveByPlate(plate) {
+    const p = (plate || '').toString().trim().toUpperCase();
+    if (!p) return;
+    const ok = confirm(`Xóa xe ${p} khỏi bãi?`);
+    if (!ok) return;
 
-      if (!items || items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="muted">Chưa có lịch sử.</td></tr>';
-        return;
-      }
+    const form = new FormData();
+    form.append('plate', p);
+    const res = await postForm(API_BASE + '/active/delete', form);
+    if (!res.ok) return;
 
-      tbody.innerHTML = items.map(it => {
-        const timeIn = it.time_in ? formatDateTime(it.time_in) : '-';
-        const timeOut = it.time_out ? formatDateTime(it.time_out) : '-';
-        const durationSec = it.duration_seconds;
-        const hours = (durationSec === null || durationSec === undefined) ? '-' : hoursFromSeconds(durationSec);
-        const fee = it.fee_vnd === null || it.fee_vnd === undefined ? '-' : `${Number(it.fee_vnd).toLocaleString('vi-VN')} VND`;
+    closeEditPlateModal();
+    await loadActiveTable();
+    await loadHistoryTable();
+  }
 
-        // Only OUT rows should contain duration/fee, but keep generic
-        return `
-          <tr>
-            <td><b>${it.plate || ''}</b></td>
-            <td>${timeIn}</td>
-            <td>${timeOut}</td>
-            <td>${hours}</td>
-            <td>${fee}</td>
-          </tr>
-        `;
-      }).join('');
-    } catch (e) {
-      document.getElementById('historyTbody').innerHTML = '<tr><td colspan="5" class="muted">Lỗi tải lịch sử.</td></tr>';
+  async function deleteHistoryByEventId(eventId) {
+    const id = Number(eventId);
+    if (!Number.isFinite(id)) return;
+    const ok = confirm(`Xóa event_id=${id} khỏi lịch sử?`);
+    if (!ok) return;
+
+    const form = new FormData();
+    form.append('event_id', String(id));
+    const res = await postForm(API_BASE + '/history/delete', form);
+    if (!res.ok) return;
+
+    closeEditPlateModal();
+    await loadActiveTable();
+    await loadHistoryTable();
+  }
+
+  // Expose to HTML inline hooks
+  window.openEditPlateModalForActive = openEditPlateModalForActive;
+  window.openEditPlateModalForHistory = openEditPlateModalForHistory;
+  window.closeEditPlateModal = closeEditPlateModal;
+  window.saveEditPlate = saveEditPlate;
+  window.deleteActiveByPlate = deleteActiveByPlate;
+  window.deleteHistoryByEventId = deleteHistoryByEventId;
+
+  async function loadActiveTable() {
+    const items = await fetchActiveItems();
+    const tbody = document.getElementById('activeTbody');
+
+
+    if (!items || !items.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="muted">Hiện chưa có xe nào trong bãi.</td></tr>';
+      return;
     }
+
+    tbody.innerHTML = items.map(it => {
+      const plate = (it.plate || '').toString().trim();
+      // Tránh tạo onclick bằng JSON.stringify(it) vì dễ gây lỗi template/backtick.
+      // Chỉ truyền plate để Xóa; Sửa thì vẫn giữ inline truyền object nhưng rút gọn: ưu tiên dùng data-*.
+      // Ở đây ta dùng data-plate và data-spot_id/time_in để lấy khi click.
+      return `
+        <tr data-plate="${plate.replace(/\"/g, '')}" style="cursor:pointer;">
+          <td><b>${it.plate || ''}</b></td>
+          <td>${formatDateTime(it.time_in || '')}</td>
+          <td>${it.spot_id || '-'}</td>
+          <td>
+            <div style="display:flex;gap:8px;">
+              <button type="button" class="btn-secondary" style="width:auto;padding:8px 10px;" onclick="event.stopPropagation(); openEditPlateModalForActive({plate: this.parentElement.parentElement.parentElement.querySelector('td b').textContent, spot_id: null, time_in: null})">Sửa</button>
+
+              <button type="button" class="btn-danger" style="width:auto;padding:8px 10px;" onclick="event.stopPropagation(); deleteActiveByPlate('${plate}')">Xóa</button>
+
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    tbody.querySelectorAll('tr').forEach(tr => {
+      tr.addEventListener('click', () => {
+        selectRow(tbody, tr);
+        const plate = tr.getAttribute('data-plate');
+        const it = items.find(x => (x.plate || '').toString().trim() === plate);
+        if (it) {
+          focusRowState = { section: 'active', plate: it.plate, event_id: null, spot_id: it.spot_id, time_in: it.time_in, time_out: null, status: 'IN' };
+        }
+      });
+    });
+  }
+
+  async function loadHistoryTable() {
+    const res = await fetch(API_BASE + '/history');
+
+    const json = await res.json();
+    const items = json.items || [];
+    const tbody = document.getElementById('historyTbody');
+
+    if (!items.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="muted">Chưa có lịch sử.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = items.map(it => {
+      const timeIn = it.time_in ? formatDateTime(it.time_in) : '-';
+      const timeOut = it.time_out ? formatDateTime(it.time_out) : '-';
+      const durationSec = it.duration_seconds;
+      const hours = (durationSec === null || durationSec === undefined) ? '-' : hoursFromSeconds(durationSec);
+      const fee = it.fee_vnd === null || it.fee_vnd === undefined ? '-' : `${Number(it.fee_vnd).toLocaleString('vi-VN')} VND`;
+
+      return `
+        <tr data-event-id="${it.event_id}" style="cursor:pointer;">
+          <td><b>${it.plate || ''}</b></td>
+          <td>${timeIn}</td>
+          <td>${timeOut}</td>
+          <td>${hours}</td>
+          <td>${fee}</td>
+          <td>
+            <div style="display:flex;gap:8px;">
+              <button type="button" class="btn-danger" style="width:auto;padding:8px 10px;" onclick="event.stopPropagation(); deleteHistoryByEventId('${it.event_id}')">Xóa</button>
+            </div>
+          </td>
+        </tr>
+      `;
+
+    }).join('');
+
+    tbody.querySelectorAll('tr').forEach(tr => {
+      tr.addEventListener('click', () => {
+        selectRow(tbody, tr);
+        const eventId = Number(tr.getAttribute('data-event-id'));
+        const it = items.find(x => Number(x.event_id) === eventId);
+        if (it) {
+          focusRowState = { section: 'history', plate: it.plate, event_id: it.event_id, spot_id: it.spot_id, time_in: it.time_in, time_out: it.time_out, status: it.status };
+        }
+      });
+    });
   }
 
   // Initial state
   loadActiveTable();
   loadHistoryTable();
+
 </script>
 </body>
 </html>

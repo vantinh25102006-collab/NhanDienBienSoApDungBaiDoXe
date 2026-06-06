@@ -1,12 +1,24 @@
-# TODO
+# TODO - Parking UI & CRUD + Spot toggle
 
-## UI Modal tìm kiếm chi tiết cho 2 bảng
-- [ ] Chỉnh `templates/index.html`: thêm overlay/modal chiếm toàn màn hình
-- [ ] Thêm 2 nút cho mỗi bảng: “Mở chi tiết” (active/history)
-- [ ] Khi bấm nút: mở modal đúng bảng và load dữ liệu (active/history)
-- [ ] Trong modal: nút X quay lại
-- [ ] Thêm thanh tìm kiếm theo khoảng thời gian (2 ô từ/đến) + nút Áp dụng
-- [ ] Thêm ô tìm kiếm theo biển số (gõ tới đâu lọc tới đó)
-- [ ] Thêm bảng hiển thị kết quả lọc, scroll
-- [ ] Test: mở modal/đóng modal, lọc realtime biển số, lọc theo thời gian
+- [ ] 1. Cập nhật `templates/index.html`:
+  - [x] 1.1 Thêm panel “đẩy 30%/overlay” khi click ô đỏ, có nút “-” để quay lại.
+  - [x] 1.2 Khi đang expanded và click ô đỏ khác: cập nhật nội dung panel theo ô mới.
+  - [x] 1.3 Thêm modal sửa biển số UI.
+  - [ ] 1.4 Thêm nút/UX Sửa-Xóa cho 2 bảng bằng click dòng + bấm nút trong giao diện chi tiết.
+  - [ ] 1.5 Viết JS gọi API: sửa/xóa + refresh tables + refresh spots.
+
+
+- [ ] 2. Cập nhật backend `parking/db.py` và `parking/service.py`:
+  - [x] 2.1 Thêm update/delete cho active/history.
+  - [x] 2.2 Khi xóa record liên quan xe đang đổ (history status='IN' hoặc active): xóa active để spot chuyển xanh.
+
+
+- [ ] 3. Cập nhật `app.py`:
+  - [x] 3.1 Thêm endpoints update/delete cho active và history.
+
+- [ ] 4. Test nhanh:
+  - [ ] 4.1 Spots: click ô đỏ khác khi expanded → panel đổi thông tin.
+  - [ ] 4.2 Active bảng: click dòng → sửa/xóa hoạt động đúng.
+  - [ ] 4.3 History bảng: sửa/xóa hoạt động đúng; xóa history đang đổ → active/spot chuyển xanh.
+
 

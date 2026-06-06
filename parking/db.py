@@ -212,3 +212,105 @@ class ParkingDB:
             ).fetchall()
             return [dict(r) for r in rows]
 
+    def update_active_plate(self, old_plate: str, new_plate: str) -> dict[str, Any] | None:
+        old_plate = (old_plate or '').strip().upper()
+        new_plate = (new_plate or '').strip().upper()
+        if not old_plate or not new_plate:
+            return None
+        if old_plate == new_plate:
+            return self.get_active_vehicle(old_plate)
+
+        with self._connect() as con:
+            exists = con.execute(
+                "SELECT 1 FROM active_vehicles WHERE plate = ? LIMIT 1",
+                (new_plate,),
+            ).fetchone()
+            if exists is not None:
+                return None
+
+            row = con.execute(
+                "SELECT * FROM active_vehicles WHERE plate = ?",
+                (old_plate,),
+            ).fetchone()
+            if row is None:
+                return None
+
+            con.execute(
+                "UPDATE active_vehicles SET plate = ? WHERE plate = ?",
+                (new_plate, old_plate),
+            )
+            return dict(row)
+
+    def delete_active_vehicle(self, plate: str) -> dict[str, Any] | None:
+        plate = (plate or '').strip().upper()
+        if not plate:
+            return None
+
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT * FROM active_vehicles WHERE plate = ?",
+                (plate,),
+            ).fetchone()
+            if row is None:
+                return None
+
+            con.execute("DELETE FROM active_vehicles WHERE plate = ?", (plate,))
+            return dict(row)
+
+    def update_history_plate(self, event_id: int, new_plate: str) -> dict[str, Any] | None:
+        new_plate = (new_plate or '').strip().upper()
+        if not new_plate:
+            return None
+
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT * FROM history WHERE event_id = ?",
+                (event_id,),
+            ).fetchone()
+            if row is None:
+                return None
+
+            con.execute(
+                "UPDATE history SET plate = ? WHERE event_id = ?",
+                (new_plate, event_id),
+            )
+            updated = dict(row)
+            updated['plate'] = new_plate
+            return updated
+
+    def delete_history_event(self, event_id: int) -> dict[str, Any] | None:
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT * FROM history WHERE event_id = ?",
+                (event_id,),
+            ).fetchone()
+            if row is None:
+                return None
+
+            con.execute("DELETE FROM history WHERE event_id = ?", (event_id,))
+            return dict(row)
+
+    def delete_history_in_by_plate_and_spot(self, plate: str, spot_id: str | None) -> None:
+        plate = (plate or '').strip().upper()
+        if not plate:
+            return
+
+        with self._connect() as con:
+            if spot_id:
+                con.execute(
+                    """
+                    DELETE FROM history
+                    WHERE plate = ? AND status = 'IN' AND spot_id = ?
+                    """,
+                    (plate, spot_id),
+                )
+            else:
+                con.execute(
+                    """
+                    DELETE FROM history
+                    WHERE plate = ? AND status = 'IN'
+                    """,
+                    (plate,),
+                )
+
+

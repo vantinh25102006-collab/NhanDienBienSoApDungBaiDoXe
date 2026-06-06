@@ -118,8 +118,55 @@ def spots():
     return jsonify({"items": spots})
 
 
+@app.post("/active/update-plate")
+def active_update_plate():
+    payload = request.form if request.form else request.json or {}
+    old_plate = payload.get("old_plate")
+    new_plate = payload.get("new_plate")
+
+    result = service.update_active_plate(old_plate=old_plate, new_plate=new_plate)
+    if result.get("status") == "error":
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@app.post("/active/delete")
+def active_delete():
+    payload = request.form if request.form else request.json or {}
+    plate = payload.get("plate")
+
+    result = service.delete_active_vehicle(plate=plate)
+    if result.get("status") == "error":
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@app.post("/history/update-plate")
+def history_update_plate():
+    payload = request.form if request.form else request.json or {}
+    event_id = payload.get("event_id")
+    new_plate = payload.get("new_plate")
+
+    result = service.update_history_plate(event_id=event_id, new_plate=new_plate)
+    if result.get("status") == "error":
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@app.post("/history/delete")
+def history_delete():
+    payload = request.form if request.form else request.json or {}
+    event_id = payload.get("event_id")
+
+    result = service.delete_history_event(event_id=event_id)
+    if result.get("status") == "error":
+        return jsonify(result), 400
+    return jsonify(result)
+
+
 @app.get("/tmp_uploads/<path:filename>")
 def tmp_uploads(filename: str):
+
     # Serve stored upload images so UI can display them.
     # Note: we intentionally scope to tmp_uploads folder.
     from flask import send_from_directory

@@ -122,4 +122,96 @@ class ParkingService:
     def get_active_vehicles(self) -> list[dict]:
         return self.db.get_active_vehicles()
 
+    def update_active_plate(self, old_plate: str, new_plate: str) -> dict:
+        old_plate = (old_plate or '').strip().upper()
+        new_plate = (new_plate or '').strip().upper()
+        if not old_plate or not new_plate:
+            return {"status": "error", "message": "Invalid plate"}
+
+        updated = self.db.update_active_plate(old_plate=old_plate, new_plate=new_plate)
+        if updated is None:
+            # either old not found or new already exists
+            return {"status": "error", "message": "Cannot update plate (maybe already exists or not found)", "plate": old_plate}
+
+        # Update history plate only for IN rows (the current active record)
+        # NOTE: requirement says only biển số changes, keep other fields.
+        # Simplest: update all IN history rows for old_plate.
+        with self.db._connect() as con:
+            con.execute(
+                "UPDATE history SET plate = ? WHERE plate = ? AND status = 'IN'",
+                (new_plate, old_plate),
+            )
+
+        return {"status": "ok", "event": "ACTIVE_UPDATE_PLATE", "old_plate": old_plate, "new_plate": new_plate}
+
+    def delete_active_vehicle(self, plate: str) -> dict:
+        plate = (plate or '').strip().upper()
+        if not plate:
+            return {"status": "error", "message": "Invalid plate"}
+
+        active = self.db.delete_active_vehicle(plate)
+        if active is None:
+            return {"status": "error", "message": "Plate not found inside", "plate": plate}
+
+        # Remove corresponding history IN row so history bảng không còn xe này
+        self.db.delete_history_in_by_plate_and_spot(plate=plate, spot_id=active.get('spot_id'))
+
+        return {"status": "ok", "event": "ACTIVE_DELETE", "plate": plate, "spot_id": active.get('spot_id')}
+
+    def update_history_plate(self, event_id: int, new_plate: str) -> dict:
+        try:
+            event_id = int(event_id)
+        except Exception:
+            return {"status": "error", "message": "Invalid event_id"}
+
+        new_plate = (new_plate or '').strip().upper()
+        if not new_plate:
+            return {"status": "error", "message": "Invalid plate"}
+
+        updated = self.db.update_history_plate(event_id=event_id, new_plate=new_plate)
+        if updated is None:
+            return {"status": "error", "message": "History event not found"}
+
+        # If this history event is currently IN, ensure active_vehicles record plate matches.
+        # Update active by deleting old active plate if needed.
+        if updated.get('status') == 'IN':
+            # Find active by the NEW plate; if not exists, the old active plate is not updated by DB layer.
+            # So we search active record by spot_id from history and update by old plate.
+            active_by_new = self.db.get_active_vehicle((new_plate or '').strip().upper())
+            if active_by_new is None:
+                # Update by spot_id: get any active record that has same spot_id.
+                # There is at most one active per spot for typical flow.
+                spot_id = updated.get('spot_id')
+                if spot_id:
+                    # scan active_vehicles to find the one at spot_id
+                    actives = self.db.get_active_vehicles() or []
+                    for a in actives:
+                        if (a.get('spot_id') == spot_id):
+                            old_active_plate = (a.get('plate') or '').strip().upper()
+                            if old_active_plate and old_active_plate != new_plate:
+                                self.db.update_active_plate(old_plate=old_active_plate, new_plate=new_plate)
+                            break
+
+        return {"status": "ok", "event": "HISTORY_UPDATE_PLATE", "event_id": event_id, "new_plate": new_plate }
+
+
+    def delete_history_event(self, event_id: int) -> dict:
+        try:
+            event_id = int(event_id)
+        except Exception:
+            return {"status": "error", "message": "Invalid event_id"}
+
+        row = self.db.delete_history_event(event_id)
+        if row is None:
+            return {"status": "error", "message": "History event not found"}
+
+        # If deleting an IN record (xe đang đổ), remove active vehicle too (spot chuyển xanh)
+        if row.get('status') == 'IN':
+            plate = (row.get('plate') or '').strip().upper()
+            if plate:
+                self.db.delete_active_vehicle(plate)
+
+        return {"status": "ok", "event": "HISTORY_DELETE", "event_id": event_id, "deleted": row}
+
+
 
