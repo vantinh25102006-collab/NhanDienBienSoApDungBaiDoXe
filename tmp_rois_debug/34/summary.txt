@@ -1,0 +1,11 @@
+image=LicPlateImages/34.png
+gt_raw=LOREMIPSUM
+gt_clean=LOREMIPSUM
+num_rois=6
+pred_str=B124CX
+idx=0 gt=L pred=B WRONG
+idx=1 gt=O pred=1 WRONG
+idx=2 gt=R pred=2 WRONG
+idx=3 gt=E pred=4 WRONG
+idx=4 gt=M pred=C WRONG
+idx=5 gt=I pred=X WRONG

@@ -1,0 +1,14 @@
+image=LicPlateImages/35.png
+gt_raw=LOREMIPSUM
+gt_clean=LOREMIPSUM
+num_rois=9
+pred_str=LOREMIPSU
+idx=0 gt=L pred=L OK
+idx=1 gt=O pred=O OK
+idx=2 gt=R pred=R OK
+idx=3 gt=E pred=E OK
+idx=4 gt=M pred=M OK
+idx=5 gt=I pred=I OK
+idx=6 gt=P pred=P OK
+idx=7 gt=S pred=S OK
+idx=8 gt=U pred=U OK
