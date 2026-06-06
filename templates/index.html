@@ -107,8 +107,8 @@
 
     <div class="card">
       <div class="row" style="margin-bottom: 8px;">
-        <button class="btn-secondary" onclick="loadActiveTable()">Danh sách xe đang đỗ</button>
-        <button class="btn-secondary" onclick="loadHistoryTable()">Xem lịch sử</button>
+        <button class="btn-secondary" onclick="openDetailsModal('active')">Mở danh sách xe đang đỗ</button>
+        <button class="btn-secondary" onclick="openDetailsModal('history')">Mở lịch sử đổ xe</button>
       </div>
 
       <div style="margin-top: 10px;">
@@ -127,6 +127,7 @@
             </tbody>
           </table>
         </div>
+        <div class="muted" style="margin-top:8px;">Bấm “Mở danh sách…” để tìm kiếm chi tiết.</div>
       </div>
 
       <div style="margin-top: 18px;">
@@ -147,8 +148,54 @@
             </tbody>
           </table>
         </div>
+        <div class="muted" style="margin-top:8px;">Bấm “Mở lịch sử…” để lọc theo thời gian/biển số.</div>
       </div>
     </div>
+
+    <!-- Modal fullscreen */ -->
+    <div id="detailsModal" style="display:none; position:fixed; inset:0; background:rgba(2,6,23,.65); z-index:9999;">
+      <div style="position:absolute; inset:0; background:#fff; margin:16px; border-radius:14px; overflow:hidden; display:flex; flex-direction:column;">
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background:#111827; color:#fff; gap:12px;">
+          <div>
+            <b id="modalTitle">Chi tiết</b>
+            <div style="font-size:12px; opacity:.85; margin-top:4px;" id="modalSubtitle"></div>
+          </div>
+          <button class="btn-secondary" style="width:auto; padding:8px 12px; background:#374151;" onclick="closeDetailsModal()">X</button>
+        </div>
+
+        <div style="padding:14px 16px; border-bottom:1px solid #e5e7eb;">
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="card" style="padding:12px; border-radius:12px;">
+              <b style="display:block; margin-bottom:8px;">Tìm kiếm theo khoảng thời gian</b>
+              <label style="margin-top:0;">Từ</label>
+              <input id="timeFrom" type="datetime-local" style="width:100%;" />
+              <label>Đến</label>
+              <input id="timeTo" type="datetime-local" style="width:100%;" />
+              <button class="btn-secondary" style="margin-top:10px; width:auto;" onclick="applyTimeFilter()">Áp dụng</button>
+            </div>
+
+            <div class="card" style="padding:12px; border-radius:12px;">
+              <b style="display:block; margin-bottom:8px;">Tìm kiếm theo biển số</b>
+              <label style="margin-top:0;">Nhập biển số (gõ tới đâu lọc tới đó)</label>
+              <input id="plateQuery" type="text" placeholder="VD: 51A" style="width:100%;" oninput="onPlateQueryChange()" />
+              <div class="muted" id="plateHint">Ví dụ: nhập ít ký tự, kết quả sẽ xuất hiện khi match.</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding: 0 16px 16px; overflow:auto;">
+          <div style="max-height: calc(100vh - 230px); overflow:auto; border:1px solid #eef2f7; border-radius:12px;">
+            <table>
+              <thead>
+                <tr id="modalHeadRow"></tr>
+              </thead>
+              <tbody id="modalBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -209,6 +256,191 @@
     elComboSelect.innerHTML = '';
     comboPayload = null;
   }
+
+
+  // ===== Modal details (active/history) =====
+  // Ghi chú: phần modal được thêm mới. Đảm bảo không phá các hàm cũ (combo/check-in/out).
+  const elDetailsModal = document.getElementById('detailsModal');
+  const elModalTitle = document.getElementById('modalTitle');
+  const elModalSubtitle = document.getElementById('modalSubtitle');
+  const elTimeFrom = document.getElementById('timeFrom');
+  const elTimeTo = document.getElementById('timeTo');
+  const elPlateQuery = document.getElementById('plateQuery');
+  const elModalHeadRow = document.getElementById('modalHeadRow');
+  const elModalBody = document.getElementById('modalBody');
+
+
+  let modalMode = 'active'; // active | history
+  let modalItemsCache = []; // data loaded
+
+  function openDetailsModal(mode) {
+    modalMode = mode;
+    elModalTitle.textContent = (mode === 'active') ? 'Chi tiết xe đang đỗ' : 'Chi tiết lịch sử đổ xe';
+    elModalSubtitle.textContent = 'Lọc theo thời gian và/hoặc biển số. Kết quả cập nhật realtime.';
+
+    // reset inputs
+    elTimeFrom.value = '';
+    elTimeTo.value = '';
+    elPlateQuery.value = '';
+
+    elDetailsModal.style.display = 'block';
+
+    // load data once opened
+    loadModalDataAndRender();
+  }
+
+  function closeDetailsModal() {
+    elDetailsModal.style.display = 'none';
+    modalItemsCache = [];
+  }
+
+  function parseDatetimeLocal(value) {
+    // value example: "2026-06-06T10:30"
+    if (!value) return null;
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return null;
+    return d;
+  }
+
+  function dateInRange(date, fromDate, toDate) {
+    if (!date) return false;
+    const t = date.getTime();
+    if (fromDate && t < fromDate.getTime()) return false;
+    if (toDate && t > toDate.getTime()) return false;
+    return true;
+  }
+
+  function normalizePlate(s) {
+    return (s || '').toString().trim().toUpperCase();
+  }
+
+  function getSearchPlateQuery() {
+    return normalizePlate(elPlateQuery.value);
+  }
+
+  function filterItems(items) {
+    const qPlate = getSearchPlateQuery();
+    const fromDate = parseDatetimeLocal(elTimeFrom.value);
+    const toDate = parseDatetimeLocal(elTimeTo.value);
+
+    return (items || []).filter(it => {
+      // plate partial match ("ghi tới đâu" -> filter realtime)
+      if (qPlate) {
+        const p = normalizePlate(it.plate);
+        if (!p.includes(qPlate)) return false;
+      }
+
+      // time filter
+      if (fromDate || toDate) {
+        if (modalMode === 'active') {
+          const t = it.time_in ? new Date(it.time_in) : null;
+          if (!dateInRange(t, fromDate, toDate)) return false;
+        } else {
+          // history: use time_out if exists else time_in
+          const timeStr = it.time_out || it.time_in;
+          const t = timeStr ? new Date(timeStr) : null;
+          if (!dateInRange(t, fromDate, toDate)) return false;
+        }
+      }
+
+      return true;
+    });
+  }
+
+  function renderModalTable(items) {
+    const data = items || [];
+
+    if (modalMode === 'active') {
+      elModalHeadRow.innerHTML = `
+        <tr>
+          <th>Biển số</th>
+          <th>Ngày giờ vào</th>
+          <th>Vị trí</th>
+        </tr>
+      `;
+      elModalBody.innerHTML = data.length ? data.map(it => `
+        <tr>
+          <td><b>${it.plate || ''}</b></td>
+          <td>${formatDateTime(it.time_in || '')}</td>
+          <td>${it.spot_id || '-'}</td>
+        </tr>
+      `).join('') : '<tr><td colspan="3" class="muted">Không có kết quả.</td></tr>';
+    } else {
+      elModalHeadRow.innerHTML = `
+        <tr>
+          <th>Biển số</th>
+          <th>Đổ (IN)</th>
+          <th>Lấy (OUT)</th>
+          <th>Giờ</th>
+          <th>Tiền</th>
+        </tr>
+      `;
+
+      elModalBody.innerHTML = data.length ? data.map(it => {
+        const timeIn = it.time_in ? formatDateTime(it.time_in) : '-';
+        const timeOut = it.time_out ? formatDateTime(it.time_out) : '-';
+        const durationSec = it.duration_seconds;
+        const hours = (durationSec === null || durationSec === undefined) ? '-' : hoursFromSeconds(durationSec);
+        const fee = it.fee_vnd === null || it.fee_vnd === undefined ? '-' : `${Number(it.fee_vnd).toLocaleString('vi-VN')} VND`;
+        return `
+          <tr>
+            <td><b>${it.plate || ''}</b></td>
+            <td>${timeIn}</td>
+            <td>${timeOut}</td>
+            <td>${hours}</td>
+            <td>${fee}</td>
+          </tr>
+        `;
+      }).join('') : '<tr><td colspan="5" class="muted">Không có kết quả.</td></tr>';
+    }
+  }
+
+  function onPlateQueryChange() {
+    if (!modalItemsCache) return;
+    const filtered = filterItems(modalItemsCache);
+    renderModalTable(filtered);
+  }
+
+  function applyTimeFilter() {
+    if (!modalItemsCache) return;
+    const filtered = filterItems(modalItemsCache);
+    renderModalTable(filtered);
+  }
+
+  // close modal on ESC
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && elDetailsModal && elDetailsModal.style.display !== 'none') {
+      closeDetailsModal();
+    }
+  });
+
+  // click outside to close
+  if (elDetailsModal) {
+    elDetailsModal.addEventListener('click', (e) => {
+      if (e.target === elDetailsModal) {
+        closeDetailsModal();
+      }
+    });
+  }
+
+
+  async function loadModalDataAndRender() {
+    // show loading
+    elModalBody.innerHTML = '<tr><td class="muted" colspan="5">Đang tải...</td></tr>';
+
+    if (modalMode === 'active') {
+      modalItemsCache = await fetchActiveItems();
+    } else {
+      const res = await fetch(API_BASE + '/history');
+      const json = await res.json();
+      modalItemsCache = json.items || [];
+    }
+
+    // first render without filters
+    const filtered = filterItems(modalItemsCache);
+    renderModalTable(filtered);
+  }
+
 
   function showComboBox(items, plate) {
     elComboSelect.innerHTML = '';
