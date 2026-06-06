@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+
 import base64
 import io
 import os
@@ -66,9 +67,17 @@ def check_in():
 
     time_in = datetime.now()
 
+    # Lưu đường dẫn ảnh để UI có thể hiển thị lại khi click ô trong sơ đồ
+    last_image_path = image_path if image_file is not None else None
 
-    result = service.check_in(plate_str=plate_str, time_in=time_in)
+    result = service.check_in(
+        plate_str=plate_str,
+        time_in=time_in,
+        last_image_path=last_image_path,
+    )
     return jsonify(result)
+
+
 
 
 @app.post("/check-out")
@@ -109,7 +118,18 @@ def spots():
     return jsonify({"items": spots})
 
 
+@app.get("/tmp_uploads/<path:filename>")
+def tmp_uploads(filename: str):
+    # Serve stored upload images so UI can display them.
+    # Note: we intentionally scope to tmp_uploads folder.
+    from flask import send_from_directory
+
+    tmp_dir = os.path.join(os.path.dirname(__file__), "tmp_uploads")
+    return send_from_directory(tmp_dir, filename)
+
+
 from flask import render_template
+
 
 
 @app.get("/")

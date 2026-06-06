@@ -122,6 +122,7 @@ class ParkingDB:
             return [dict(r) for r in rows]
 
 
+
     def remove_vehicle(self, plate: str) -> dict[str, Any] | None:
         with self._connect() as con:
             row = con.execute(

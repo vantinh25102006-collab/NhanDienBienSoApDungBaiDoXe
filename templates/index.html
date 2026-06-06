@@ -111,6 +111,11 @@
         <button class="btn-secondary" onclick="openDetailsModal('history')">Mở lịch sử đổ xe</button>
       </div>
 
+      <div class="row" style="margin-bottom: 8px;">
+        <button class="btn-secondary" onclick="openSpotsModal()">Sơ đồ vị trí trong bãi</button>
+      </div>
+
+
       <div style="margin-top: 10px;">
         <h2 style="margin:0 0 10px;">Xe đang đỗ</h2>
         <div style="max-height: 260px; overflow:auto; border:1px solid #eef2f7; border-radius:12px;">
@@ -199,7 +204,61 @@
   </div>
 </div>
 
+<!-- Spots modal fullscreen -->
+<div id="spotsModal" style="display:none; position:fixed; inset:0; background:rgba(2,6,23,.65); z-index:9998;">
+  <div style="position:absolute; inset:0; background:#fff; margin:16px; border-radius:14px; overflow:hidden; display:flex; flex-direction:column;">
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background:#111827; color:#fff; gap:12px;">
+      <div>
+        <b>Sơ đồ vị trí trong bãi</b>
+        <div style="font-size:12px; opacity:.85; margin-top:4px;">Đỏ = đang có xe · Xanh/Trắng = trống</div>
+      </div>
+      <button class="btn-secondary" style="width:auto; padding:8px 12px; background:#374151;" onclick="closeSpotsModal()">X</button>
+    </div>
+
+    <div style="padding:14px 16px; overflow:auto;">
+      <div id="spotsLegend" style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+        <div style="display:flex; align-items:center; gap:8px;"> <span style="width:18px; height:18px; border-radius:4px; background:#dc2626; display:inline-block;"></span> Đang có xe</div>
+        <div style="display:flex; align-items:center; gap:8px;"> <span style="width:18px; height:18px; border-radius:4px; background:#22c55e; display:inline-block;"></span> Trống</div>
+      </div>
+
+      <div id="spotsGridWrap" style="border:1px solid #eef2f7; border-radius:12px; padding:12px; overflow:auto;">
+        <div id="spotsGrid" style="display:grid; grid-template-columns: repeat(10, 1fr); gap:8px;"></div>
+      </div>
+
+      <div id="spotsError" class="muted" style="display:none; margin-top:10px;">Không có dữ liệu spots/active.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Spot detail modal -->
+<div id="spotDetailModal" style="display:none; position:fixed; inset:0; background:rgba(2,6,23,.65); z-index:9997;">
+  <div style="position:absolute; inset:0; background:#fff; margin:16px; border-radius:14px; overflow:hidden; display:flex; flex-direction:column;">
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background:#111827; color:#fff; gap:12px;">
+      <div>
+        <b id="spotDetailTitle">Chi tiết xe</b>
+        <div style="font-size:12px; opacity:.85; margin-top:4px;" id="spotDetailSubtitle"></div>
+      </div>
+      <button class="btn-secondary" style="width:auto; padding:8px 12px; background:#374151;" onclick="closeSpotDetailModal()">X</button>
+    </div>
+
+    <div style="padding:14px 16px; overflow:auto; flex:1;">
+      <div style="display:grid; grid-template-columns: 0.9fr 1.1fr; gap:12px;">
+        <div class="card" style="padding:12px; border-radius:12px;">
+          <b style="display:block; margin-bottom:8px;">Ảnh nhận diện</b>
+          <img id="spotDetailImage" style="width:100%; max-height:360px; object-fit:contain; border:1px dashed #cbd5e1; border-radius:12px; background:#f8fafc;" alt="xe" />
+          <div class="muted" style="margin-top:8px;" id="spotDetailImageHint"></div>
+        </div>
+        <div class="card" style="padding:12px; border-radius:12px;">
+          <b style="display:block; margin-bottom:8px;">Thông tin</b>
+          <div style="font-size:13px; line-height:1.6;" id="spotDetailInfo"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
+
   const API_BASE = '';
 
   let currentMode = 'IN'; // IN | OUT
@@ -257,8 +316,161 @@
     comboPayload = null;
   }
 
+  // ===== Spots modal & spot detail =====
+  let spotsDataCache = null;
+  let activeItemsCache = null;
+
+  const elSpotsModal = document.getElementById('spotsModal');
+  const elSpotsGrid = document.getElementById('spotsGrid');
+  const elSpotsError = document.getElementById('spotsError');
+
+  const elSpotDetailModal = document.getElementById('spotDetailModal');
+  const elSpotDetailTitle = document.getElementById('spotDetailTitle');
+  const elSpotDetailSubtitle = document.getElementById('spotDetailSubtitle');
+  const elSpotDetailImage = document.getElementById('spotDetailImage');
+  const elSpotDetailImageHint = document.getElementById('spotDetailImageHint');
+  const elSpotDetailInfo = document.getElementById('spotDetailInfo');
+
+  async function loadSpotsAndActive() {
+    const [spotsRes, activeRes] = await Promise.all([
+      fetch(API_BASE + '/spots'),
+      fetch(API_BASE + '/active')
+    ]);
+    const spotsJson = await spotsRes.json();
+    const activeJson = await activeRes.json();
+    return {
+      spots: spotsJson.items || [],
+      active: activeJson.items || [],
+    };
+  }
+
+  function plateOrDash(s) {
+    return (s || '').toString().trim() || '-';
+  }
+
+  function closeSpotsModal() {
+    if (elSpotsModal) elSpotsModal.style.display = 'none';
+    spotsDataCache = null;
+    activeItemsCache = null;
+  }
+
+  function closeSpotDetailModal() {
+    if (elSpotDetailModal) elSpotDetailModal.style.display = 'none';
+  }
+
+  async function openSpotsModal() {
+    if (!elSpotsModal) return;
+    elSpotsModal.style.display = 'block';
+
+    elSpotsGrid.innerHTML = '';
+    elSpotsError.style.display = 'none';
+
+    elSpotsGrid.innerHTML = '<div class="muted">Đang tải...</div>';
+
+    try {
+      const data = await loadSpotsAndActive();
+      spotsDataCache = data.spots;
+      activeItemsCache = data.active;
+
+      renderSpotsGrid();
+    } catch (e) {
+      elSpotsError.style.display = 'block';
+      elSpotsGrid.innerHTML = '';
+    }
+  }
+
+  function renderSpotsGrid() {
+    if (!spotsDataCache) return;
+
+    const activeBySpot = {};
+    (activeItemsCache || []).forEach(it => {
+      if (it.spot_id) activeBySpot[it.spot_id] = it;
+    });
+
+    // Determine columns by max spot count; keep 10 columns like modal css
+    const total = spotsDataCache.length;
+    const items = total ? spotsDataCache : [];
+
+    elSpotsGrid.innerHTML = '';
+
+    if (!items.length) {
+      elSpotsError.style.display = 'block';
+      elSpotsGrid.innerHTML = '';
+      return;
+    }
+
+    items.forEach((sp, idx) => {
+      const spotId = sp.spot_id;
+      const active = activeBySpot[spotId];
+      const hasCar = !!active;
+
+      // color: red if has car, green if empty (white/transparent for non-active if you want)
+      let bg = '#22c55e';
+      if (hasCar) bg = '#dc2626';
+      else {
+        // if is_active false => white
+        if (sp.is_active === 0) bg = '#f3f4f6';
+      }
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = spotId;
+      btn.style.width = '100%';
+      btn.style.height = '44px';
+      btn.style.borderRadius = '8px';
+      btn.style.border = '1px solid #e5e7eb';
+      btn.style.cursor = hasCar ? 'pointer' : 'default';
+      btn.style.background = bg;
+      btn.style.color = hasCar ? '#fff' : '#111827';
+      btn.style.fontWeight = '800';
+      btn.style.display = 'flex';
+      btn.style.alignItems = 'center';
+      btn.style.justifyContent = 'center';
+      btn.style.padding = '0';
+
+      if (hasCar) {
+        btn.addEventListener('click', () => openSpotDetail(active));
+      } else {
+        btn.disabled = true;
+        btn.style.opacity = '0.95';
+      }
+
+      elSpotsGrid.appendChild(btn);
+    });
+  }
+
+  function openSpotDetail(activeItem) {
+    if (!activeItem) return;
+
+    const spotId = activeItem.spot_id;
+    const plate = activeItem.plate;
+    const timeIn = activeItem.time_in;
+
+    elSpotDetailTitle.textContent = `Spot ${spotId} - ${plate}`;
+    elSpotDetailSubtitle.textContent = `Đang đỗ từ: ${formatDateTime(timeIn || '')}`;
+
+    const lastImagePath = activeItem.last_image_path;
+    if (lastImagePath) {
+      const filename = lastImagePath.split(/[/\\]/).pop();
+      elSpotDetailImage.src = API_BASE + `/tmp_uploads/${encodeURIComponent(filename)}`;
+      elSpotDetailImageHint.textContent = 'Ảnh nhận diện từ upload gần nhất.';
+    } else {
+      elSpotDetailImage.removeAttribute('src');
+      elSpotDetailImageHint.textContent = 'Chưa có ảnh nhận diện cho spot này.';
+    }
+
+    elSpotDetailInfo.innerHTML = `
+      <div><b>Biển số:</b> ${plateOrDash(plate)}</div>
+      <div><b>Ngày giờ vào:</b> ${formatDateTime(timeIn || '')}</div>
+      <div><b>Vị trí:</b> ${spotId || '-'}</div>
+    `;
+
+    elSpotDetailModal.style.display = 'block';
+  }
+
 
   // ===== Modal details (active/history) =====
+
   // Ghi chú: phần modal được thêm mới. Đảm bảo không phá các hàm cũ (combo/check-in/out).
   const elDetailsModal = document.getElementById('detailsModal');
   const elModalTitle = document.getElementById('modalTitle');

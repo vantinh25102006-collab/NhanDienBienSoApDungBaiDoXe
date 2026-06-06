@@ -28,10 +28,17 @@ class ParkingService:
         self.fee_rule = fee_rule or FeeRule()
 
 
-    def check_in(self, plate_str: str, time_in: datetime, spot_id: Optional[str] = None) -> dict:
+    def check_in(
+        self,
+        plate_str: str,
+        time_in: datetime,
+        spot_id: Optional[str] = None,
+        last_image_path: Optional[str] = None,
+    ) -> dict:
         plate = (plate_str or "").strip().upper()
         if not plate:
             return {"status": "error", "message": "Invalid plate"}
+
 
         active = self.db.get_active_vehicle(plate)
         if active is not None:
@@ -43,8 +50,20 @@ class ParkingService:
         if spot_id is None:
             return {"status": "error", "message": "No free spot"}
 
-        self.db.add_vehicle(plate=plate, time_in=time_in, spot_id=spot_id)
-        self.db.write_check_in_history(plate=plate, time_in=time_in, spot_id=spot_id)
+        self.db.add_vehicle(
+            plate=plate,
+            time_in=time_in,
+            spot_id=spot_id,
+            last_image_path=last_image_path,
+        )
+        self.db.write_check_in_history(
+            plate=plate,
+            time_in=time_in,
+            spot_id=spot_id,
+            last_image_path=last_image_path,
+        )
+
+
 
         return {
             "status": "ok",
